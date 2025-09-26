@@ -5,14 +5,15 @@ import psycopg2
 from psycopg2 import sql
 
 # ==============================
-# 1. Configurações do Banco de Dados PostgreSQL
-# ATENÇÃO: Substitua os placeholders abaixo pelas suas credenciais reais do DB na nuvem.
+# 1. Configurações do Banco de Dados PostgreSQL (Supabase)
+# ESTES VALORES FORAM INSERIDOS COM BASE NA CONFIGURAÇÃO FORNECIDA PELO USUÁRIO.
 # ==============================
 DB_PARAMS = {
-    "host": "YOUR_POSTGRES_HOST",        # Ex: 'dpg-xxxxxxxx-a01.oregon-postgres.render.com'
-    "database": "YOUR_DB_NAME",          # Ex: 'atividade_db'
-    "user": "YOUR_DB_USER",              # Ex: 'user_admin'
-    "password": "YOUR_DB_PASSWORD"       # Ex: 'S3cretP@ssw0rd'
+    "host": "db.urytjzupeorabraufjef.supabase.co",
+    "port": 5432,
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Bp@20081993"
 }
 
 # ==============================
