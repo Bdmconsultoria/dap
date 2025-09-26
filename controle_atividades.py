@@ -2,6 +2,19 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import psycopg2
+import socket
+
+# ==============================
+# 0. Forçar IPv4 (Ignorar IPv6)
+# ==============================
+original_getaddrinfo = socket.getaddrinfo
+
+def getaddrinfo_ipv4(host, port, *args, **kwargs):
+    # Retorna apenas endereços IPv4
+    infos = original_getaddrinfo(host, port, *args, **kwargs)
+    return [i for i in infos if i[0] == socket.AF_INET]
+
+socket.getaddrinfo = getaddrinfo_ipv4
 
 # ==============================
 # 1. Configurações do Banco de Dados PostgreSQL (Supabase)
@@ -12,8 +25,7 @@ DB_PARAMS = {
     "database": "postgres",
     "user": "postgres",
     "password": "Bp@20081993",
-    "sslmode": "require",
-    "options": "-c search_path=public"
+    "sslmode": "require"
 }
 
 # ==============================
@@ -21,7 +33,7 @@ DB_PARAMS = {
 # ==============================
 @st.cache_resource
 def get_db_connection():
-    """Cria e retorna a conexão PostgreSQL usando cache para não abrir múltiplas conexões."""
+    """Conexão PostgreSQL única por sessão."""
     try:
         conn = psycopg2.connect(**DB_PARAMS)
         return conn
@@ -196,90 +208,3 @@ else:
     if st.sidebar.button("Sair"):
         st.session_state["usuario"] = None
         st.session_state["admin"] = False
-        st.session_state.reload_flag += 1
-        st.experimental_rerun()
-
-    abas = ["Lançar Atividade", "Minhas Atividades"]
-    if st.session_state["admin"]:
-        abas += ["Gerenciar Usuários", "Consolidado"]
-
-    aba = st.sidebar.radio("Menu", abas)
-    st.sidebar.divider()
-
-    # --- Gerenciar Usuários ---
-    if aba == "Gerenciar Usuários" and st.session_state["admin"]:
-        st.header("👥 Gerenciar Usuários")
-        with st.form("form_add_user"):
-            col1, col2, col3 = st.columns([3, 3, 1])
-            novo_usuario = col1.text_input("Nome de Usuário", key="new_user")
-            nova_senha = col2.text_input("Senha", type="password", key="new_pass")
-            admin_check = col3.checkbox("Admin", key="new_admin")
-            submitted = st.form_submit_button("Adicionar Usuário")
-
-            if submitted:
-                if salvar_usuario(novo_usuario, nova_senha, admin_check):
-                    st.success("Usuário adicionado com sucesso!")
-                    st.session_state.reload_flag += 1
-                    st.experimental_rerun()
-                else:
-                    st.error("Falha ao adicionar usuário.")
-
-        st.subheader("Usuários Cadastrados")
-        st.dataframe(usuarios_df.drop(columns=['senha']), use_container_width=True)
-
-    # --- Lançar Atividade ---
-    elif aba == "Lançar Atividade":
-        st.header("📝 Lançamento de Atividade")
-        with st.form("form_atividade"):
-            data = st.date_input("Data da Atividade", datetime.today())
-            descricao = st.selectbox("Descrição da Atividade", DESCRICOES)
-            projeto = st.selectbox("Projeto", PROJETOS)
-            porcentagem = st.slider("Porcentagem de Dedicação", 0, 100, 100)
-            observacao = st.text_area("Observação / Detalhamento", height=150)
-            submitted = st.form_submit_button("Salvar Atividade")
-
-            if submitted:
-                if not observacao.strip():
-                    st.error("A Observação/Detalhamento é obrigatória.")
-                else:
-                    if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
-                        st.success("Atividade salva com sucesso!")
-                        st.session_state.reload_flag += 1
-                        st.experimental_rerun()
-                    else:
-                        st.error("Falha ao salvar atividade.")
-
-    # --- Minhas Atividades ---
-    elif aba == "Minhas Atividades":
-        st.header("📊 Minhas Atividades")
-        minhas = atividades_df[atividades_df["usuario"] == st.session_state["usuario"]]
-        if minhas.empty:
-            st.info("Nenhuma atividade encontrada.")
-        else:
-            display_df = minhas[['data', 'descricao', 'projeto', 'porcentagem', 'observacao']]
-            st.dataframe(display_df, use_container_width=True)
-            st.download_button(
-                "📥 Exportar CSV", 
-                minhas.to_csv(index=False).encode('utf-8'), 
-                f"atividades_{st.session_state['usuario']}.csv",
-                mime="text/csv"
-            )
-
-    # --- Consolidado (Admin) ---
-    elif aba == "Consolidado" and st.session_state["admin"]:
-        st.header("📑 Consolidado Geral")
-        if atividades_df.empty:
-            st.info("Nenhum registro de atividade no banco.")
-        else:
-            st.dataframe(atividades_df.drop(columns=['id']), use_container_width=True)
-            st.download_button(
-                "📥 Exportar Consolidado CSV",
-                atividades_df.to_csv(index=False).encode('utf-8'),
-                "consolidado_geral.csv",
-                mime="text/csv"
-            )
-
-
-
-
-
