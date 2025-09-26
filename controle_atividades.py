@@ -6,16 +6,17 @@ from psycopg2 import sql
 
 # ==============================
 # 1. Configurações do Banco de Dados PostgreSQL (Supabase)
-# É fundamental que os dados estejam corretos. Adicionamos 'sslmode=require',
-# que é padrão para o Supabase e pode resolver problemas de conexão/endereçamento.
+# O host foi revertido para o NOME DE DOMÍNIO padrão.
+# Se o erro de conexão persistir, verifique a configuração de rede/firewall do seu projeto Supabase.
 # ==============================
 DB_PARAMS = {
-    "host": "db.urytjzupeorabraufjef.supabase.co",
+    # Usando o nome de domínio para a conexão em nuvem.
+    "host": "db.urytjzupeorabraufjef.supabase.co", 
     "port": 5432,
     "database": "postgres",
     "user": "postgres",
     "password": "Bp@20081993",
-    # ADICIONADO: Supabase requer SSL para conexões externas.
+    # Supabase requer SSL para conexões externas.
     "sslmode": "require" 
 }
 
@@ -45,7 +46,7 @@ def setup_db():
 
     try:
         with conn.cursor() as cursor:
-            # Tabela de Usuários
+            # Tabela de Usuários (necessária para sistema multiusuário)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS usuarios (
                     usuario VARCHAR(50) PRIMARY KEY,
@@ -350,3 +351,7 @@ else:
                 "consolidado_geral.csv",
                 mime="text/csv"
             )
+
+                mime="text/csv"
+            )
+
