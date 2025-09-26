@@ -2,49 +2,41 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import psycopg2
-from psycopg2 import sql
 
 # ==============================
 # 1. Configurações do Banco de Dados PostgreSQL (Supabase)
 # ==============================
 DB_PARAMS = {
-    # Usando o nome de domínio para a conexão em nuvem.
-    "host": "db.urytjzupeorabraufjef.supabase.co", 
+    "host": "db.urytjzupeorabraufjef.supabase.co",
     "port": 5432,
     "database": "postgres",
     "user": "postgres",
     "password": "Bp@20081993",
-    # Supabase requer SSL para conexões externas.
-    "sslmode": "require" 
+    "sslmode": "require",
+    "options": "-c search_path=public"
 }
 
 # ==============================
-# Configurações iniciais do Streamlit
+# 2. Conexão PostgreSQL com cache
 # ==============================
-st.set_page_config(page_title="Controle de Atividades (PostgreSQL)", layout="wide")
-
-# ==============================
-# 2. Funções de Conexão e Setup do DB
-# ==============================
-
+@st.cache_resource
 def get_db_connection():
-    """Tenta estabelecer a conexão com o banco de dados PostgreSQL."""
+    """Cria e retorna a conexão PostgreSQL usando cache para não abrir múltiplas conexões."""
     try:
         conn = psycopg2.connect(**DB_PARAMS)
         return conn
     except Exception as e:
-        # st.error é usado aqui para mostrar o erro de forma clara no app
-        st.error(f"❌ Erro ao conectar ao banco de dados. Verifique suas credenciais e a disponibilidade do serviço: {e}")
+        st.error(f"❌ Erro ao conectar ao banco de dados: {e}")
         return None
 
+# ==============================
+# 3. Setup do banco
+# ==============================
 def setup_db():
-    """Cria as tabelas 'usuarios' e 'atividades' se não existirem."""
     conn = get_db_connection()
-    if conn is None: return
-
+    if conn is None: st.stop()
     try:
         with conn.cursor() as cursor:
-            # Tabela de Usuários (necessária para sistema multiusuário)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS usuarios (
                     usuario VARCHAR(50) PRIMARY KEY,
@@ -52,8 +44,6 @@ def setup_db():
                     admin BOOLEAN DEFAULT FALSE
                 );
             """)
-
-            # Tabela de Atividades
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS atividades (
                     id SERIAL PRIMARY KEY,
@@ -69,128 +59,81 @@ def setup_db():
             """)
             conn.commit()
     except Exception as e:
-        st.error(f"Erro na criação/verificação das tabelas: {e}")
-    finally:
-        conn.close()
+        st.error(f"Erro ao criar/verificar tabelas: {e}")
 
-# Executa o setup do DB ao iniciar o script
 setup_db()
 
-
 # ==============================
-# 3. Funções de Carregamento de Dados (Cache)
+# 4. Funções CRUD
 # ==============================
-
-# Usa st.cache_data para carregar dados do DB e evitar recargas desnecessárias
-# O cache será invalidado quando 'reload_flag' mudar (após uma inserção ou update)
-@st.cache_data(show_spinner="🔄 Carregando dados do PostgreSQL...")
-def load_data_from_db(reload_flag):
-    """Carrega dados das tabelas 'usuarios' e 'atividades' para DataFrames."""
-    conn = get_db_connection()
-    if conn is None:
-        # Retorna DataFrames vazios em caso de falha na conexão
-        return pd.DataFrame(), pd.DataFrame()
-
-    try:
-        # Carrega usuários
-        usuarios_query = "SELECT usuario, senha, admin FROM usuarios;"
-        usuarios_df = pd.read_sql(usuarios_query, conn)
-
-        # Carrega atividades
-        atividades_query = "SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao FROM atividades ORDER BY data DESC;"
-        atividades_df = pd.read_sql(atividades_query, conn)
-
-        return usuarios_df, atividades_df
-    except Exception as e:
-        st.error(f"Erro ao carregar dados do DB: {e}")
-        return pd.DataFrame(), pd.DataFrame()
-    finally:
-        conn.close()
-
-# Inicializa o flag de recarga na sessão
-if "reload_flag" not in st.session_state:
-    st.session_state.reload_flag = 0
-
-# Carrega dados do PostgreSQL (agora usando a função com cache)
-usuarios_df, atividades_df = load_data_from_db(st.session_state.reload_flag)
-
-# ==============================
-# 4. Funções auxiliares (CRUD)
-# ==============================
-
 def salvar_usuario(usuario, senha, admin=False):
-    """Insere um novo usuário no DB. Retorna True em caso de sucesso."""
     conn = get_db_connection()
     if conn is None: return False
     try:
         with conn.cursor() as cursor:
-            # Usa INSERT INTO ON CONFLICT DO NOTHING para evitar duplicatas e erro
-            cursor.execute(
-                """
-                INSERT INTO usuarios (usuario, senha, admin) 
-                VALUES (%s, %s, %s) 
-                ON CONFLICT (usuario) 
-                DO NOTHING;
-                """,
-                (usuario, senha, admin)
-            )
+            cursor.execute("""
+                INSERT INTO usuarios (usuario, senha, admin)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (usuario) DO NOTHING;
+            """, (usuario, senha, admin))
             conn.commit()
             return True
     except Exception as e:
-        st.error(f"Erro ao salvar usuário no DB: {e}")
+        st.error(f"Erro ao salvar usuário: {e}")
         return False
-    finally:
-        conn.close()
 
 def validar_login(usuario, senha):
-    """Verifica se o usuário e senha são válidos no DB. Retorna (True/False, admin_status)."""
     conn = get_db_connection()
     if conn is None: return False, False
     try:
         with conn.cursor() as cursor:
-            cursor.execute(
-                "SELECT senha, admin FROM usuarios WHERE usuario = %s;",
-                (usuario,)
-            )
+            cursor.execute("SELECT senha, admin FROM usuarios WHERE usuario = %s;", (usuario,))
             result = cursor.fetchone()
-            
             if result and result[0] == senha:
-                return True, result[1] # result[0] é a senha, result[1] é o status admin
+                return True, result[1]
             return False, False
     except Exception as e:
-        st.error(f"Erro ao validar login no DB: {e}")
+        st.error(f"Erro ao validar login: {e}")
         return False, False
-    finally:
-        conn.close()
 
 def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao):
-    """Insere uma nova atividade no DB. Retorna True em caso de sucesso."""
     conn = get_db_connection()
     if conn is None: return False
     try:
         with conn.cursor() as cursor:
-            mes = data.month
-            ano = data.year
-            
-            cursor.execute(
-                """
-                INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao) 
+            mes, ano = data.month, data.year
+            cursor.execute("""
+                INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-                """,
-                (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
-            )
+            """, (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao))
             conn.commit()
             return True
     except Exception as e:
-        st.error(f"Erro ao salvar atividade no DB: {e}")
+        st.error(f"Erro ao salvar atividade: {e}")
         return False
-    finally:
-        conn.close()
+
+@st.cache_data(show_spinner="🔄 Carregando dados do PostgreSQL...")
+def load_data_from_db(reload_flag):
+    conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame(), pd.DataFrame()
+    try:
+        usuarios_df = pd.read_sql("SELECT usuario, senha, admin FROM usuarios;", conn)
+        atividades_df = pd.read_sql("SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao FROM atividades ORDER BY data DESC;", conn)
+        return usuarios_df, atividades_df
+    except Exception as e:
+        st.error(f"Erro ao carregar dados do DB: {e}")
+        return pd.DataFrame(), pd.DataFrame()
+
+# Inicializa flag de recarga
+if "reload_flag" not in st.session_state:
+    st.session_state.reload_flag = 0
+
+usuarios_df, atividades_df = load_data_from_db(st.session_state.reload_flag)
 
 # ==============================
-# Listas fixas
+# 5. Listas fixas
 # ==============================
-# Manutenção das listas fixas em português
 DESCRICOES = [
     "1.001 - Gestão", "1.002 - Geral", "1.003 - Conselho", "1.004 - Treinamento e Desenvolvimento",
     "2.001 - Gestão do administrativo", "2.002 - Administrativa", "2.003 - Jurídica", "2.004 - Financeira",
@@ -225,38 +168,36 @@ PROJETOS = [
 ]
 
 # ==============================
-# 5. Interface Streamlit
+# 6. Interface Streamlit
 # ==============================
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
     st.session_state["admin"] = False
 
+# --- Tela de Login ---
 if st.session_state["usuario"] is None:
-    # --- Tela de Login ---
     st.title("🔐 Login (PostgreSQL)")
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
     
     if st.button("Entrar"):
-        # Garante que os DataFrames estejam frescos para validar o login
         usuarios_df, atividades_df = load_data_from_db(st.session_state.reload_flag)
-        
         ok, admin = validar_login(usuario, senha)
         if ok:
             st.session_state["usuario"] = usuario
             st.session_state["admin"] = admin
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("Usuário ou senha incorretos")
+
+# --- App logado ---
 else:
-    # --- App Logado ---
     st.sidebar.markdown(f"**Usuário:** {st.session_state['usuario']}")
-    
     if st.sidebar.button("Sair"):
         st.session_state["usuario"] = None
         st.session_state["admin"] = False
-        st.session_state.reload_flag += 1 # Opcional: força recarga ao sair
-        st.rerun()
+        st.session_state.reload_flag += 1
+        st.experimental_rerun()
 
     abas = ["Lançar Atividade", "Minhas Atividades"]
     if st.session_state["admin"]:
@@ -265,12 +206,10 @@ else:
     aba = st.sidebar.radio("Menu", abas)
     st.sidebar.divider()
 
-    # --- Gerenciar Usuários (Admin) ---
+    # --- Gerenciar Usuários ---
     if aba == "Gerenciar Usuários" and st.session_state["admin"]:
         st.header("👥 Gerenciar Usuários")
-        
         with st.form("form_add_user"):
-            st.subheader("Adicionar Novo Usuário")
             col1, col2, col3 = st.columns([3, 3, 1])
             novo_usuario = col1.text_input("Nome de Usuário", key="new_user")
             nova_senha = col2.text_input("Senha", type="password", key="new_pass")
@@ -279,10 +218,9 @@ else:
 
             if submitted:
                 if salvar_usuario(novo_usuario, nova_senha, admin_check):
-                    st.success("Usuário adicionado com sucesso ao PostgreSQL!")
-                    # Incrementa o flag para forçar a recarga dos dados
+                    st.success("Usuário adicionado com sucesso!")
                     st.session_state.reload_flag += 1
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error("Falha ao adicionar usuário.")
 
@@ -291,42 +229,35 @@ else:
 
     # --- Lançar Atividade ---
     elif aba == "Lançar Atividade":
-        st.header("📝 Lançamento de Atividade (DAP)")
-        
+        st.header("📝 Lançamento de Atividade")
         with st.form("form_atividade"):
             data = st.date_input("Data da Atividade", datetime.today())
-            descricao = st.selectbox("Descrição da Atividade (Código)", DESCRICOES)
+            descricao = st.selectbox("Descrição da Atividade", DESCRICOES)
             projeto = st.selectbox("Projeto", PROJETOS)
             porcentagem = st.slider("Porcentagem de Dedicação", 0, 100, 100)
-            observacao = st.text_area("Observação / Detalhamento da Tarefa (Obrigatório)", height=150)
-            
-            submitted = st.form_submit_button("Salvar Atividade no DB")
-            
+            observacao = st.text_area("Observação / Detalhamento", height=150)
+            submitted = st.form_submit_button("Salvar Atividade")
+
             if submitted:
                 if not observacao.strip():
                     st.error("A Observação/Detalhamento é obrigatória.")
                 else:
                     if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
-                        st.success("Atividade salva com sucesso no PostgreSQL!")
-                        # Incrementa o flag para forçar a recarga dos dados
+                        st.success("Atividade salva com sucesso!")
                         st.session_state.reload_flag += 1
-                        st.rerun()
+                        st.experimental_rerun()
                     else:
                         st.error("Falha ao salvar atividade.")
 
     # --- Minhas Atividades ---
     elif aba == "Minhas Atividades":
-        st.header("📊 Minhas Atividades Registradas")
-        
+        st.header("📊 Minhas Atividades")
         minhas = atividades_df[atividades_df["usuario"] == st.session_state["usuario"]]
-        
         if minhas.empty:
-            st.info("Nenhuma atividade encontrada para o seu usuário.")
+            st.info("Nenhuma atividade encontrada.")
         else:
-            # Seleciona colunas relevantes para exibição
             display_df = minhas[['data', 'descricao', 'projeto', 'porcentagem', 'observacao']]
             st.dataframe(display_df, use_container_width=True)
-            
             st.download_button(
                 "📥 Exportar CSV", 
                 minhas.to_csv(index=False).encode('utf-8'), 
@@ -336,19 +267,19 @@ else:
 
     # --- Consolidado (Admin) ---
     elif aba == "Consolidado" and st.session_state["admin"]:
-        st.header("📑 Consolidado Geral de Atividades")
-        
+        st.header("📑 Consolidado Geral")
         if atividades_df.empty:
-            st.info("Nenhum registro de atividade no banco de dados.")
+            st.info("Nenhum registro de atividade no banco.")
         else:
             st.dataframe(atividades_df.drop(columns=['id']), use_container_width=True)
-            
             st.download_button(
-                "📥 Exportar Consolidado CSV", 
-                atividades_df.to_csv(index=False).encode('utf-8'), 
+                "📥 Exportar Consolidado CSV",
+                atividades_df.to_csv(index=False).encode('utf-8'),
                 "consolidado_geral.csv",
                 mime="text/csv"
             )
+
+
 
 
 
