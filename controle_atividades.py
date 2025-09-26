@@ -6,14 +6,17 @@ from psycopg2 import sql
 
 # ==============================
 # 1. Configurações do Banco de Dados PostgreSQL (Supabase)
-# ESTES VALORES FORAM INSERIDOS COM BASE NA CONFIGURAÇÃO FORNECIDA PELO USUÁRIO.
+# É fundamental que os dados estejam corretos. Adicionamos 'sslmode=require',
+# que é padrão para o Supabase e pode resolver problemas de conexão/endereçamento.
 # ==============================
 DB_PARAMS = {
     "host": "db.urytjzupeorabraufjef.supabase.co",
     "port": 5432,
     "database": "postgres",
     "user": "postgres",
-    "password": "Bp@20081993"
+    "password": "Bp@20081993",
+    # ADICIONADO: Supabase requer SSL para conexões externas.
+    "sslmode": "require" 
 }
 
 # ==============================
