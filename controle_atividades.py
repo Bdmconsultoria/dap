@@ -6,8 +6,6 @@ from psycopg2 import sql
 
 # ==============================
 # 1. Configurações do Banco de Dados PostgreSQL (Supabase)
-# O host foi revertido para o NOME DE DOMÍNIO padrão.
-# Se o erro de conexão persistir, verifique a configuração de rede/firewall do seu projeto Supabase.
 # ==============================
 DB_PARAMS = {
     # Usando o nome de domínio para a conexão em nuvem.
@@ -352,6 +350,5 @@ else:
                 mime="text/csv"
             )
 
-                mime="text/csv"
-            )
+
 
