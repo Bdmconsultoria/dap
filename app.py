@@ -158,6 +158,8 @@ else:
                     st.success("Usuário adicionado!")
                 else:
                     st.warning("Usuário já existe.")
+                # Usa rerun para forçar o dataframe de usuários a ser recarregado no topo do script
+                st.rerun() 
 
         st.subheader("Usuários cadastrados")
         st.dataframe(usuarios_df, hide_index=True)
@@ -179,12 +181,8 @@ else:
             if st.form_submit_button("Salvar Atividade"):
                 salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao)
                 st.success("Atividade salva com sucesso!")
-                # Força o recarregamento do DataFrame de atividades após salvar
-                global atividades_df
-                try:
-                    atividades_df = pd.read_csv(ATIVIDADES_FILE)
-                except pd.errors.EmptyDataError:
-                    atividades_df = pd.DataFrame(columns=["usuario", "data", "mes", "ano", "descricao", "projeto", "porcentagem", "observacao"])
+                # FIX: Remove o bloco 'global atividades_df' e usa st.rerun() para recarregar o script e o DataFrame
+                st.rerun() 
 
 
     # -----------------------------
@@ -232,8 +230,6 @@ else:
         
         if atividades_df.empty:
             st.warning("Não há atividades lançadas para realizar a validação.")
-            # Sai da função se não houver dados
-            # O 'return' evita a execução do código de agrupamento abaixo
             return
 
         # 1. Definir o DataFrame a ser validado (Admin vê tudo, comum vê apenas o seu)
