@@ -2,72 +2,119 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import uuid
+import numpy as np
 
 # ==============================
 # Configurações iniciais
 # ==============================
-st.set_page_config(page_title="Controle de Atividades", layout="wide")
+st.set_page_config(page_title="Controle de Atividades (CSV Local)", layout="wide")
 
 # Arquivo para salvar usuários e atividades
 USERS_FILE = "usuarios.csv"
 ATIVIDADES_FILE = "atividades.csv"
 
-# Inicializa os arquivos caso não existam
-if not os.path.exists(USERS_FILE):
-    # Cria com colunas: usuario, senha, admin (booleano)
-    pd.DataFrame(columns=["usuario", "senha", "admin"]).to_csv(USERS_FILE, index=False)
-if not os.path.exists(ATIVIDADES_FILE):
-    # Cria com colunas: usuario, data, mes, ano, descricao, projeto, porcentagem, observacao
-    pd.DataFrame(columns=["usuario", "data", "mes", "ano", "descricao", "projeto", "porcentagem", "observacao"]).to_csv(ATIVIDADES_FILE, index=False)
+# ==============================
+# Funções de inicialização e carregamento
+# ==============================
 
-# Carrega dados
-# Tenta carregar os DataFrames, tratando erros se os arquivos estiverem vazios ou corrompidos
-try:
-    usuarios_df = pd.read_csv(USERS_FILE)
-except pd.errors.EmptyDataError:
-    usuarios_df = pd.DataFrame(columns=["usuario", "senha", "admin"])
+def initialize_files():
+    """Inicializa os arquivos CSV se não existirem."""
+    if not os.path.exists(USERS_FILE):
+        df_users = pd.DataFrame(columns=["usuario", "senha", "admin"])
+        df_users.to_csv(USERS_FILE, index=False)
+        # Adiciona um usuário admin padrão para a primeira inicialização
+        salvar_usuario_csv('admin', '123', True)
+    
+    if not os.path.exists(ATIVIDADES_FILE):
+        # Adiciona a coluna 'id' para rastrear e permitir a exclusão
+        df_activities = pd.DataFrame(columns=["id", "usuario", "data", "mes", "ano", "descricao", "projeto", "porcentagem", "observacao"])
+        df_activities.to_csv(ATIVIDADES_FILE, index=False)
 
-try:
-    atividades_df = pd.read_csv(ATIVIDADES_FILE)
-except pd.errors.EmptyDataError:
-    atividades_df = pd.DataFrame(columns=["usuario", "data", "mes", "ano", "descricao", "projeto", "porcentagem", "observacao"])
+@st.cache_data(show_spinner=False)
+def load_data():
+    """Carrega os dados dos arquivos CSV."""
+    try:
+        usuarios_df = pd.read_csv(USERS_FILE)
+        atividades_df = pd.read_csv(ATIVIDADES_FILE)
+        # Garante que 'id' é um GUID para exclusão
+        atividades_df['id'] = atividades_df['id'].astype(str)
+    except Exception as e:
+        st.error(f"Erro ao carregar dados CSV. Certifique-se de que os arquivos não estão corrompidos. {e}")
+        usuarios_df = pd.DataFrame(columns=["usuario", "senha", "admin"])
+        atividades_df = pd.DataFrame(columns=["id", "usuario", "data", "mes", "ano", "descricao", "projeto", "porcentagem", "observacao"])
+    return usuarios_df, atividades_df
+
+# Inicializa arquivos na primeira execução
+initialize_files()
+
+# Carrega DataFrames (usados globalmente na sessão)
+usuarios_df, atividades_df = load_data()
 
 
 # ==============================
-# Funções auxiliares
+# Funções auxiliares (CSV WRITE/VALIDATE)
 # ==============================
-def salvar_usuario(usuario, senha, admin=False):
+def salvar_usuario_csv(usuario, senha, admin=False):
+    """Salva um novo usuário no CSV."""
     global usuarios_df
-    # Verifica se o usuário já existe (case-sensitive)
-    if usuario not in usuarios_df["usuario"].values:
-        novo = pd.DataFrame([[usuario, senha, admin]], columns=["usuario", "senha", "admin"])
-        usuarios_df = pd.concat([usuarios_df, novo], ignore_index=True)
-        usuarios_df.to_csv(USERS_FILE, index=False)
-        return True
-    return False
+    
+    # Verifica se o usuário já existe
+    if usuario in usuarios_df["usuario"].values:
+        return False
+        
+    novo = pd.DataFrame([[usuario, senha, admin]], columns=["usuario", "senha", "admin"])
+    usuarios_df = pd.concat([usuarios_df, novo], ignore_index=True)
+    usuarios_df.to_csv(USERS_FILE, index=False)
+    # Limpa o cache para o próximo carregamento
+    load_data.clear()
+    return True
 
 def validar_login(usuario, senha):
+    """Valida o login."""
     if usuario in usuarios_df["usuario"].values:
         row = usuarios_df.loc[usuarios_df["usuario"] == usuario].iloc[0]
-        # Garante que 'admin' é tratado como booleano (True/1 ou False/0)
+        # Garante que 'admin' é tratado como booleano
         is_admin = str(row.get("admin", False)).lower() in ('true', '1', 'True')
         if row["senha"] == senha:
             return True, is_admin
     return False, False
 
-def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao):
+def salvar_atividade_csv(usuario, data, descricao, projeto, porcentagem, observacao):
+    """Salva uma nova atividade no CSV."""
     global atividades_df
+    
     mes = data.month
     ano = data.year
-    # data formatada para exibição (ex: 26/09/2025)
-    data_formatada = data.strftime("%d/%m/%Y")
-    nova = pd.DataFrame([[usuario, data_formatada, mes, ano, descricao, projeto, porcentagem, observacao]],
-                        columns=["usuario", "data", "mes", "ano", "descricao", "projeto", "porcentagem", "observacao"])
+    
+    # Gera um ID único para a atividade
+    new_id = str(uuid.uuid4())
+    
+    nova = pd.DataFrame(
+        [[new_id, usuario, data.strftime("%d/%m/%Y"), mes, ano, descricao, projeto, porcentagem, observacao]],
+        columns=["id", "usuario", "data", "mes", "ano", "descricao", "projeto", "porcentagem", "observacao"]
+    )
     atividades_df = pd.concat([atividades_df, nova], ignore_index=True)
     atividades_df.to_csv(ATIVIDADES_FILE, index=False)
+    # Limpa o cache para o próximo carregamento
+    load_data.clear()
+
+def deletar_atividade_csv(activity_id):
+    """Deleta uma atividade do CSV usando o ID."""
+    global atividades_df
+    
+    # Filtra o DataFrame para remover a linha com o ID correspondente
+    # Garante que a coluna 'id' no DataFrame e o activity_id de entrada são strings
+    atividades_df = atividades_df[atividades_df['id'].astype(str) != str(activity_id)]
+    
+    # Salva o DataFrame modificado de volta no arquivo
+    atividades_df.to_csv(ATIVIDADES_FILE, index=False)
+    # Limpa o cache para o próximo carregamento
+    load_data.clear()
+
 
 # ==============================
-# Listas fixas (Manter em Português)
+# Listas fixas
 # ==============================
 DESCRICOES = [
     "1.001 - Gestão", "1.002 - Geral", "1.003 - Conselho", "1.004 - Treinamento e Desenvolvimento",
@@ -114,12 +161,14 @@ if st.session_state["usuario"] is None:
     # Tela de Login
     # -----------------------------
     st.title("🔐 Login")
-    usuario = st.text_input("Usuário")
-    senha = st.text_input("Senha", type="password")
+    st.info("Dados salvos localmente em arquivos CSV. Usuário padrão: **admin** / **123**.")
+    usuario_input = st.text_input("Usuário")
+    senha_input = st.text_input("Senha", type="password")
+    
     if st.button("Entrar"):
-        ok, admin = validar_login(usuario, senha)
+        ok, admin = validar_login(usuario_input, senha_input)
         if ok:
-            st.session_state["usuario"] = usuario
+            st.session_state["usuario"] = usuario_input
             st.session_state["admin"] = admin
             st.rerun()
         else:
@@ -129,15 +178,14 @@ else:
     # Menu Principal
     # -----------------------------
     st.sidebar.write(f"👤 Logado como: {st.session_state['usuario']}")
+    
     if st.sidebar.button("Sair"):
         st.session_state["usuario"] = None
         st.session_state["admin"] = False
         st.rerun()
 
-    # Define as abas. 'Validação' agora é acessível a todos.
     abas = ["Lançar Atividade", "Minhas Atividades", "Validação"]
     
-    # Adiciona abas de administração
     if st.session_state["admin"]:
         abas += ["Gerenciar Usuários", "Consolidado"]
 
@@ -154,11 +202,10 @@ else:
             nova_senha = st.text_input("Senha", type="password")
             admin_check = st.checkbox("Administrador")
             if st.form_submit_button("Adicionar Usuário"):
-                if salvar_usuario(novo_usuario, nova_senha, admin_check):
+                if salvar_usuario_csv(novo_usuario, nova_senha, admin_check):
                     st.success("Usuário adicionado!")
                 else:
                     st.warning("Usuário já existe.")
-                # Usa rerun para forçar o dataframe de usuários a ser recarregado no topo do script
                 st.rerun() 
 
         st.subheader("Usuários cadastrados")
@@ -170,36 +217,61 @@ else:
     elif aba == "Lançar Atividade":
         st.header("📝 Lançamento de Atividade (DAP Completa)")
         with st.form("form_lancamento"):
-            data = st.date_input("Data", datetime.today())
+            data_input = st.date_input("Data", datetime.today())
             descricao = st.selectbox("Descrição da Atividade (Código - Título)", DESCRICOES)
             projeto = st.selectbox("Projeto/Alocação", PROJETOS)
             
-            # Garante que a porcentagem é um valor entre 0 e 100
             porcentagem = st.slider("Porcentagem de Dedicação do Dia (0 a 100)", 0, 100, 100)
             
             observacao = st.text_area("Observação / Detalhamento da Atividade")
             if st.form_submit_button("Salvar Atividade"):
-                salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao)
-                st.success("Atividade salva com sucesso!")
-                # FIX: st.rerun() usado para recarregar o script e o DataFrame
+                salvar_atividade_csv(st.session_state["usuario"], data_input, descricao, projeto, porcentagem, observacao)
+                st.success("Atividade salva!")
                 st.rerun() 
 
 
     # -----------------------------
-    # Minhas Atividades
+    # Minhas Atividades (Com Exclusão)
     # -----------------------------
     elif aba == "Minhas Atividades":
         st.header("📊 Minhas Atividades Lançadas")
-        minhas = atividades_df[atividades_df["usuario"] == st.session_state["usuario"]]
         
+        minhas = atividades_df[atividades_df["usuario"] == st.session_state["usuario"]].copy()
+
         if minhas.empty:
             st.info("Você ainda não lançou nenhuma atividade.")
         else:
             # Seleciona e renomeia as colunas para melhor visualização
-            colunas_exibicao = minhas[['data', 'descricao', 'projeto', 'porcentagem', 'observacao']]
-            colunas_exibicao.columns = ['Data', 'Descrição', 'Projeto', 'Percentual (%)', 'Observação']
-            st.dataframe(colunas_exibicao, hide_index=True)
+            minhas = minhas.sort_values(by='data', ascending=False)
             
+            st.markdown("---")
+            st.subheader("Atividades para Exclusão:")
+            st.warning("Para apagar, clique no botão '🗑️ Apagar' ao lado da atividade.")
+
+            # Itera sobre as atividades para criar botões de exclusão
+            for index, row in minhas.iterrows():
+                cols = st.columns([0.1, 0.2, 0.4, 0.15, 0.15])
+                
+                # Exibe a data, descrição, projeto e porcentagem em colunas
+                cols[0].write(row['data'])
+                cols[1].write(row['descricao'].split(" - ")[-1]) # Exibe só a descrição
+                cols[2].write(row['projeto'])
+                cols[3].write(f"{row['porcentagem']}%")
+                
+                # Botão de Exclusão
+                delete_button_key = f"delete_{row['id']}"
+                if cols[4].button("🗑️ Apagar", key=delete_button_key):
+                    deletar_atividade_csv(row['id'])
+                    st.success(f"Atividade de {row['data']} apagada.")
+                    st.rerun() # Recarrega a página para atualizar a lista
+                
+                # Expander para Observação
+                with st.expander("Ver Observação Completa", expanded=False):
+                    st.text(row['observacao'])
+                
+                st.markdown("---")
+
+            # Botão de exportação no final da lista
             st.download_button(
                 "📥 Exportar Minhas Atividades CSV", 
                 minhas.to_csv(index=False).encode('utf-8'), 
@@ -212,13 +284,15 @@ else:
     # -----------------------------
     elif aba == "Consolidado" and st.session_state["admin"]:
         st.header("📑 Consolidado Geral de Atividades")
-        if atividades_df.empty:
+        df_consolidado = atividades_df.drop(columns=['id'], errors='ignore')
+
+        if df_consolidado.empty:
             st.info("Ainda não há atividades lançadas na base de dados.")
         else:
-            st.dataframe(atividades_df, hide_index=True)
+            st.dataframe(df_consolidado, hide_index=True)
             st.download_button(
                 "📥 Exportar Consolidado CSV", 
-                atividades_df.to_csv(index=False).encode('utf-8'), 
+                df_consolidado.to_csv(index=False).encode('utf-8'), 
                 "consolidado_geral.csv",
                 mime="text/csv"
             )
@@ -228,31 +302,30 @@ else:
     # -----------------------------
     elif aba == "Validação":
         
-        if atividades_df.empty:
+        df_base = atividades_df.copy()
+        
+        if df_base.empty:
             st.warning("Não há atividades lançadas para realizar a validação.")
-            # FIX: Substituído 'return' por 'st.stop()' para interromper a execução do script Streamlit
             st.stop() 
 
         # 1. Definir o DataFrame a ser validado (Admin vê tudo, comum vê apenas o seu)
         if st.session_state["admin"]:
             st.header("✅ Validação de Porcentagem Mensal por Usuário (Visão Global)")
             st.info("Visão Administrativa: Mostra a **soma da porcentagem de atividades lançadas** por todos os usuários, agrupadas por Mês e Ano. O ideal é que a dedicação total do colaborador seja de **100%** em cada mês.")
-            df_to_validate = atividades_df
+            df_to_validate = df_base
             nome_export = "validacao_mensal_global.csv"
         else:
             st.header(f"✅ Validação de Suas Horas Mensais ({st.session_state['usuario']})")
             st.info("Esta tabela mostra a **soma da porcentagem de atividades lançadas** em seu nome, agrupadas por Mês e Ano. O ideal é que a dedicação total seja de **100%** em cada mês.")
-            df_to_validate = atividades_df[atividades_df['usuario'] == st.session_state["usuario"]]
+            df_to_validate = df_base[df_base['usuario'] == st.session_state["usuario"]]
             nome_export = "validacao_mensal_pessoal.csv"
             
             if df_to_validate.empty:
                 st.warning("Você ainda não lançou atividades suficientes para esta validação.")
-                # FIX: Substituído 'return' por 'st.stop()'
-                st.stop() 
+                st.stop() # Interrompe a execução para usuários sem dados
 
         # 2. Preparar e agrupar os dados
         validacao_df = df_to_validate[['usuario', 'ano', 'mes', 'porcentagem']].copy()
-        # Garante que porcentagem é numérica, tratando possíveis erros
         validacao_df['porcentagem'] = pd.to_numeric(validacao_df['porcentagem'], errors='coerce').fillna(0)
 
 
@@ -261,9 +334,8 @@ else:
         total_por_mes.rename(columns={'porcentagem': 'Total_Porcentagem_Lancada'}, inplace=True)
 
         # 4. Formatar para exibição
-        # Cria a coluna Mês/Ano e ordena
         total_por_mes['mes_ano'] = total_por_mes['mes'].astype(str).str.zfill(2) + '/' + total_por_mes['ano'].astype(str)
-        total_por_mes = total_por_mes.sort_values(by=['ano', 'mes', 'usuario'], ascending=[False, False, True]) # Ordena do mais recente para o mais antigo
+        total_por_mes = total_por_mes.sort_values(by=['ano', 'mes', 'usuario'], ascending=[False, False, True])
         
         
         # 5. Configurar a tabela de exibição
@@ -271,7 +343,6 @@ else:
             tabela_final = total_por_mes[['usuario', 'mes_ano', 'Total_Porcentagem_Lancada']]
             tabela_final.columns = ['Usuário', 'Mês/Ano', 'Porcentagem Lançada']
         else:
-            # Usuário comum só vê suas colunas relevantes
             tabela_final = total_por_mes[['mes_ano', 'Total_Porcentagem_Lancada']]
             tabela_final.columns = ['Mês/Ano', 'Porcentagem Lançada']
 
