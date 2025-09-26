@@ -181,7 +181,7 @@ else:
             if st.form_submit_button("Salvar Atividade"):
                 salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao)
                 st.success("Atividade salva com sucesso!")
-                # FIX: Remove o bloco 'global atividades_df' e usa st.rerun() para recarregar o script e o DataFrame
+                # FIX: st.rerun() usado para recarregar o script e o DataFrame
                 st.rerun() 
 
 
@@ -230,7 +230,8 @@ else:
         
         if atividades_df.empty:
             st.warning("Não há atividades lançadas para realizar a validação.")
-            return
+            # FIX: Substituído 'return' por 'st.stop()' para interromper a execução do script Streamlit
+            st.stop() 
 
         # 1. Definir o DataFrame a ser validado (Admin vê tudo, comum vê apenas o seu)
         if st.session_state["admin"]:
@@ -246,7 +247,8 @@ else:
             
             if df_to_validate.empty:
                 st.warning("Você ainda não lançou atividades suficientes para esta validação.")
-                return 
+                # FIX: Substituído 'return' por 'st.stop()'
+                st.stop() 
 
         # 2. Preparar e agrupar os dados
         validacao_df = df_to_validate[['usuario', 'ano', 'mes', 'porcentagem']].copy()
