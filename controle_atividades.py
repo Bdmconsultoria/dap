@@ -109,9 +109,9 @@ def validar_login(usuario, senha):
     finally:
         conn.close()
 
-def calcular_porcentagem_existente(usuario, data, excluido_id=None):
+def calcular_porcentagem_existente(usuario, mes, ano, excluido_id=None):
     """
-    Calcula a soma das porcentagens de atividades já registradas para o usuário na data,
+    Calcula a soma das porcentagens de atividades já registradas para o usuário no MÊS/ANO,
     excluindo opcionalmente uma atividade (usado na edição).
     """
     conn = get_db_connection()
@@ -122,9 +122,9 @@ def calcular_porcentagem_existente(usuario, data, excluido_id=None):
             query = """
                 SELECT COALESCE(SUM(porcentagem), 0)
                 FROM atividades
-                WHERE usuario = %s AND data = %s
+                WHERE usuario = %s AND mes = %s AND ano = %s
             """
-            params = [usuario, data]
+            params = [usuario, mes, ano]
             
             if excluido_id is not None:
                 query += " AND id != %s"
@@ -140,13 +140,14 @@ def calcular_porcentagem_existente(usuario, data, excluido_id=None):
         if conn:
             conn.close()
 
-def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao, atividade_id=None):
+def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observacao, atividade_id=None):
     """Salva uma nova atividade ou atualiza uma existente (se atividade_id for fornecido)."""
     conn = get_db_connection()
     if conn is None: return False
     try:
         with conn.cursor() as cursor:
-            mes, ano = data.month, data.year
+            # A data é o primeiro dia do mês para satisfazer o requisito DATE do PostgreSQL
+            data_db = datetime(year=ano, month=mes, day=1).date()
             
             if atividade_id is None:
                 # Inserir Nova Atividade
@@ -154,7 +155,7 @@ def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao,
                     INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                 """
-                params = (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
+                params = (usuario, data_db, mes, ano, descricao, projeto, porcentagem, observacao)
             else:
                 # Atualizar Atividade Existente
                 query = """
@@ -162,7 +163,7 @@ def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao,
                     SET data = %s, mes = %s, ano = %s, descricao = %s, projeto = %s, porcentagem = %s, observacao = %s
                     WHERE id = %s;
                 """
-                params = (data, mes, ano, descricao, projeto, porcentagem, observacao, atividade_id)
+                params = (data_db, mes, ano, descricao, projeto, porcentagem, observacao, atividade_id)
             
             cursor.execute(query, params)
             conn.commit()
@@ -198,7 +199,7 @@ def carregar_dados():
         usuarios_df = pd.read_sql("SELECT usuario, admin FROM usuarios;", conn)
         atividades_df = pd.read_sql("""
             SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao 
-            FROM atividades ORDER BY data DESC;
+            FROM atividades ORDER BY ano DESC, mes DESC, data DESC;
         """, conn)
         
         # Converter a coluna 'data' para datetime para permitir o uso do acessor .dt no Pandas
@@ -394,6 +395,15 @@ PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Adm
 DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
 PROJETOS_SELECT = ["--- Selecione ---"] + PROJETOS
 
+# Dados para Seleção de Mês e Ano (para o formulário)
+MESES = {
+    1: "01 - Janeiro", 2: "02 - Fevereiro", 3: "03 - Março", 4: "04 - Abril",
+    5: "05 - Maio", 6: "06 - Junho", 7: "07 - Julho", 8: "08 - Agosto",
+    9: "09 - Setembro", 10: "10 - Outubro", 11: "11 - Novembro", 12: "12 - Dezembro"
+}
+MESES_SELECT = ["--- Selecione ---"] + list(MESES.values())
+ANOS = list(range(datetime.today().year - 2, datetime.today().year + 3)) # De 2 anos atrás a 2 anos adiante
+
 # ==============================
 # 6. Sessão
 # ==============================
@@ -484,24 +494,32 @@ else:
         st.dataframe(usuarios_df_reloaded, use_container_width=True)
 
     # ==============================
-    # Lançar Atividade (Com Validação de 100%)
+    # Lançar Atividade (Mensal)
     # ==============================
     elif aba == "Lançar Atividade":
-        st.header("📝 Lançar Atividade")
+        st.header("📝 Lançar Atividade (Mensal)")
         with st.form("form_atividade"):
-            # Usando DESCRICOES_SELECT e PROJETOS_SELECT para começar com "--- Selecione ---"
-            data = st.date_input("Data", datetime.today())
+            
+            col_mes, col_ano = st.columns(2)
+            
+            # Mês e Ano Seletores
+            mes_select = col_mes.selectbox("Mês", MESES_SELECT, index=list(MESES.values()).index(MESES[datetime.today().month]) + 1)
+            ano_select = col_ano.selectbox("Ano", ANOS, index=ANOS.index(datetime.today().year))
+            
             descricao = st.selectbox("Descrição", DESCRICOES_SELECT)
             projeto = st.selectbox("Projeto", PROJETOS_SELECT)
             # A porcentagem mínima deve ser 1 para evitar lançamentos vazios
-            porcentagem = st.slider("Porcentagem", 1, 100, 100) 
+            porcentagem = st.slider("Porcentagem (%)", 1, 100, 100) 
             observacao = st.text_area("Observação")
             
-            if st.form_submit_button("Salvar"):
+            if st.form_submit_button("Salvar Lançamento"):
                 
+                # Mapeia Mês de volta para o número
+                mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
+
                 # 1. Validação de Seleção Vazias
-                if descricao == "--- Selecione ---" or projeto == "--- Selecione ---":
-                    st.error("Por favor, selecione uma Descrição e um Projeto válidos.")
+                if mes_num is None or descricao == "--- Selecione ---" or projeto == "--- Selecione ---":
+                    st.error("Por favor, selecione um Mês, Descrição e Projeto válidos.")
                     st.stop()
                 
                 # 2. Validação de Observação
@@ -509,36 +527,36 @@ else:
                     st.error("A observação é obrigatória.")
                     st.stop()
                     
-                # --- VALIDAÇÃO DE 100% DIÁRIO ---
-                # 3. Obter a soma das porcentagens já lançadas para o dia e usuário
-                total_existente = calcular_porcentagem_existente(st.session_state["usuario"], data)
+                # --- VALIDAÇÃO DE 100% MENSAL ---
+                # 3. Obter a soma das porcentagens já lançadas para o MÊS/ANO e usuário
+                total_existente = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select)
                 novo_total = total_existente + porcentagem
 
                 # 4. Verificar se o novo total excede 100%
                 if novo_total > 100:
                     st.error(
-                        f"⚠️ **Alocação Excedida!** O total de porcentagem lançado para **{data.strftime('%d/%m/%Y')}** "
+                        f"⚠️ **Alocação Excedida!** O total de porcentagem lançado para **{mes_select}/{ano_select}** "
                         f"é de **{total_existente}%**. A nova atividade de **{porcentagem}%** faria o total ser **{novo_total}%**, "
                         f"que excede o limite de 100%."
                     )
                 else:
                     # 5. Salvar se a validação passar
-                    if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
+                    if salvar_atividade(st.session_state["usuario"], mes_num, ano_select, descricao, projeto, porcentagem, observacao):
                         # Invalida o cache para forçar a recarga dos dados na próxima execução
                         carregar_dados.clear()
                         
                         # Se for 100%, mostra uma mensagem especial.
                         if novo_total == 100:
                             st.balloons()
-                            st.success("🎉 Atividade salva! Você completou a alocação de 100% para este dia.")
+                            st.success(f"🎉 Atividade salva! Você completou a alocação de 100% para {mes_select}/{ano_select}.")
                         else:
-                            st.success(f"Atividade salva! Total alocado no dia: {novo_total}%.")
+                            st.success(f"Atividade salva! Total alocado em {mes_select}/{ano_select}: {novo_total}%.")
                         
-                        st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
+                        st.rerun()
                             
 
     # ==============================
-    # Minhas Atividades (com Edição)
+    # Minhas Atividades (com Edição e 2 Gráficos)
     # ==============================
     elif aba == "Minhas Atividades":
         st.header("📊 Minhas Atividades")
@@ -552,24 +570,32 @@ else:
             atividade_edit = minhas[minhas['id'] == st.session_state['edit_id']].iloc[0]
             
             with st.form("form_edicao"):
-                data_edit = st.date_input("Data", atividade_edit['data'].date())
                 
-                # Encontra o índice da Descrição e Projeto para pré-selecionar no selectbox
+                col_mes_edit, col_ano_edit = st.columns(2)
+                
+                # Encontra o índice da Descrição, Projeto, Mês e Ano para pré-selecionar no selectbox
                 default_desc_idx = DESCRICOES_SELECT.index(atividade_edit['descricao'])
                 default_proj_idx = PROJETOS_SELECT.index(atividade_edit['projeto'])
+                default_mes_idx = MESES_SELECT.index(MESES[atividade_edit['mes']])
+                default_ano_idx = ANOS.index(atividade_edit['ano'])
+                
+                mes_edit = col_mes_edit.selectbox("Mês", MESES_SELECT, index=default_mes_idx)
+                ano_edit = col_ano_edit.selectbox("Ano", ANOS, index=default_ano_idx)
                 
                 descricao_edit = st.selectbox("Descrição", DESCRICOES_SELECT, index=default_desc_idx)
                 projeto_edit = st.selectbox("Projeto", PROJETOS_SELECT, index=default_proj_idx)
-                porcentagem_edit = st.slider("Porcentagem", 1, 100, atividade_edit['porcentagem']) 
+                porcentagem_edit = st.slider("Porcentagem (%)", 1, 100, atividade_edit['porcentagem']) 
                 observacao_edit = st.text_area("Observação", atividade_edit['observacao'])
                 
                 col_save, col_cancel = st.columns(2)
                 
                 if col_save.form_submit_button("Salvar Edição"):
                     
+                    mes_num_edit = next((k for k, v in MESES.items() if v == mes_edit), None)
+
                     # 1. Validação de Seleção Vazias
-                    if descricao_edit == "--- Selecione ---" or projeto_edit == "--- Selecione ---":
-                        st.error("Por favor, selecione uma Descrição e um Projeto válidos.")
+                    if mes_num_edit is None or descricao_edit == "--- Selecione ---" or projeto_edit == "--- Selecione ---":
+                        st.error("Por favor, selecione um Mês, Descrição e Projeto válidos.")
                         st.stop()
                     
                     # 2. Validação de Observação
@@ -577,11 +603,12 @@ else:
                         st.error("A observação é obrigatória.")
                         st.stop()
                         
-                    # --- VALIDAÇÃO DE 100% DIÁRIO NA EDIÇÃO ---
+                    # --- VALIDAÇÃO DE 100% MENSAL NA EDIÇÃO ---
                     # Exclui a porcentagem da própria atividade_edit
                     total_existente = calcular_porcentagem_existente(
                         st.session_state["usuario"], 
-                        data_edit, 
+                        mes_num_edit,
+                        ano_edit,
                         excluido_id=st.session_state['edit_id']
                     )
                     novo_total = total_existente + porcentagem_edit
@@ -589,13 +616,14 @@ else:
                     if novo_total > 100:
                         st.error(
                             f"⚠️ **Alocação Excedida!** A edição faria o total ser **{novo_total}%**, "
-                            f"que excede o limite de 100% para o dia {data_edit.strftime('%d/%m/%Y')}."
+                            f"que excede o limite de 100% para o mês {mes_edit}/{ano_edit}."
                         )
                     else:
                         # 3. Salvar Edição
                         if salvar_atividade(
                             st.session_state["usuario"], 
-                            data_edit, 
+                            mes_num_edit, 
+                            ano_edit, 
                             descricao_edit, 
                             projeto_edit, 
                             porcentagem_edit, 
@@ -625,15 +653,57 @@ else:
         df_filtro = minhas[minhas['data_mes'] == mes_selecionado].sort_values(by='data', ascending=False)
         
         st.markdown("---")
+        
+        # -----------------------------
+        # NOVO GRÁFICO 1: Alocação Total Mensal vs 100%
+        # -----------------------------
+        total_alocado_no_mes = df_filtro['porcentagem'].sum()
+        
+        st.subheader(f"Total de Porcentagem Alocada - {mes_selecionado}")
+        
+        df_total = pd.DataFrame({
+            'Categoria': ['Alocado', 'Restante'],
+            'Porcentagem': [total_alocado_no_mes, max(0, 100 - total_alocado_no_mes)]
+        })
+
+        # Define a cor da barra baseada se excedeu ou não 100%
+        cor = 'lightgreen' if total_alocado_no_mes <= 100 else 'red'
+        
+        fig_total = px.bar(
+            df_total.head(1), # Mostra apenas a linha "Alocado"
+            x='Porcentagem',
+            y='Categoria',
+            orientation='h',
+            range_x=[0, 100],
+            text='Porcentagem',
+            color_discrete_sequence=[cor],
+            title=f"Total: {total_alocado_no_mes}% de 100%"
+        )
+
+        fig_total.update_layout(
+            showlegend=False,
+            yaxis={'visible': False, 'showticklabels': False},
+            xaxis={'tickvals': [0, 25, 50, 75, 100], 'ticktext': ['0%', '25%', '50%', '75%', '100%'], 'title': ''}
+        )
+
+        # Adiciona a linha de 100%
+        fig_total.add_vline(x=100, line_dash="dash", line_color="red", annotation_text="100% (Limite)")
+        
+        # Se excedeu 100%, mostra a barra até o total excedente, mas a linha de 100% continua a referência
+        if total_alocado_no_mes > 100:
+             fig_total.update_layout(xaxis={'range': [0, total_alocado_no_mes + 10]})
+
+        st.plotly_chart(fig_total, use_container_width=True)
+        # -----------------------------
 
         # Gráfico de pizza por Descrição (Requisito do Usuário)
-        st.subheader(f"Distribuição de Tempo por Descrição - {mes_selecionado}")
+        st.subheader(f"Distribuição Detalhada de Atividades - {mes_selecionado}")
         df_agrupado_descricao = df_filtro.groupby('descricao')['porcentagem'].sum().reset_index()
         fig_descricao = px.pie(
             df_agrupado_descricao, 
             names='descricao', 
             values='porcentagem', 
-            title='Alocação por Descrição de Atividade no Mês',
+            title='Distribuição da Porcentagem Lançada no Mês',
             hole=.3,
         )
         st.plotly_chart(fig_descricao, use_container_width=True)
@@ -645,7 +715,9 @@ else:
             # Usa 3 colunas: Info, Editar e Apagar
             col1, col2, col3 = st.columns([3, 1, 1])
             with col1:
-                st.markdown(f"**ID {row['id']}** | 📅 **{row['data'].strftime('%d/%m/%Y')}** | **{row['descricao']}** ({row['porcentagem']}%)")
+                # Exibe Mês/Ano em vez de Data diária
+                mes_str = MESES.get(row['mes'], 'Mês Inválido')
+                st.markdown(f"**ID {row['id']}** | 🗓️ **{mes_str}/{row['ano']}** | **{row['descricao']}** ({row['porcentagem']}%)")
                 st.markdown(f"**Projeto:** *{row['projeto']}*")
                 st.markdown(f"**Obs:** {row['observacao']}")
             
@@ -698,25 +770,55 @@ else:
             if not df_consolidado.empty:
                 st.subheader("Visualização dos Dados Filtrados")
                 
-                # Gráfico de Barras: % alocada por dia para o usuário/mês filtrado
-                df_diario = df_consolidado.groupby(['data'])['porcentagem'].sum().reset_index()
-                df_diario.columns = ['Data', 'Total Alocado (%)']
+                # Gráfico de Barras: % alocada por MÊS para o usuário/mês filtrado
+                # Agrupa por MÊS/ANO para visualização
+                df_mensal = df_consolidado.groupby(['data_mes'])['porcentagem'].sum().reset_index()
+                df_mensal.columns = ['Mês/Ano', 'Total Alocado (%)']
                 
-                fig_diario = px.bar(
-                    df_diario, 
-                    x='Data', 
+                fig_mensal = px.bar(
+                    df_mensal, 
+                    x='Mês/Ano', 
                     y='Total Alocado (%)', 
-                    title=f"Total de Porcentagem Alocada por Dia",
+                    title=f"Total de Porcentagem Alocada por Mês",
                     color='Total Alocado (%)',
                     color_continuous_scale=px.colors.sequential.Plotly3,
                     height=400
                 )
-                fig_diario.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Ideal", annotation_position="top left")
-                st.plotly_chart(fig_diario, use_container_width=True)
+                fig_mensal.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Ideal", annotation_position="top left")
+                st.plotly_chart(fig_mensal, use_container_width=True)
                 
                 # Tabela de dados detalhada
                 st.subheader("Tabela de Dados Detalhada")
                 st.dataframe(df_consolidado.drop(columns=['data_mes']), use_container_width=True)
+
+                # --- Novo Bloco de Download ---
+                st.markdown("---")
+                
+                # Renomeia as colunas para o arquivo final
+                df_download = df_consolidado.drop(columns=['id', 'data_mes']).rename(columns={
+                    'usuario': 'Usuário',
+                    'data': 'Data (Dia 1 do Mês)',
+                    'mes': 'Mês',
+                    'ano': 'Ano',
+                    'descricao': 'Descrição',
+                    'projeto': 'Projeto',
+                    'porcentagem': 'Porcentagem',
+                    'observacao': 'Observação'
+                })
+
+                # Cria um buffer em memória para o arquivo Excel
+                buffer = io.BytesIO()
+                df_download.to_excel(buffer, index=False, sheet_name='Atividades Consolidadas')
+                buffer.seek(0) # Retorna o ponteiro para o início do arquivo
+
+                # Botão de Download
+                st.download_button(
+                    label="⬇️ Baixar Dados Filtrados (Excel)",
+                    data=buffer,
+                    file_name=f"atividades_consolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                # -----------------------------
 
             else:
                 st.info("Nenhum dado encontrado com os filtros selecionados.")
@@ -728,7 +830,7 @@ else:
         st.header("⬆️ Importação de Dados em Massa (Admin)")
         st.warning(
             "⚠️ **Aviso de Formato:** Seu arquivo deve conter uma coluna **'Data'** no formato Mês/Ano (MM/AAAA) ou Dia/Mês/Ano (DD/MM/AAAA). "
-            "A porcentagem será multiplicada por 100 (ex: 0.25 -> 25%)."
+            "A porcentagem será multiplicada por 100 (ex: 0.25 -> 25%). **A importação continuará usando a data para extrair Mês e Ano.**"
         )
         
         uploaded_file = st.file_uploader("Carregar arquivo CSV ou XLSX com lançamentos", type=["csv", "xlsx"])
@@ -893,3 +995,4 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
