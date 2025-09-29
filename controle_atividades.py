@@ -2,38 +2,23 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import psycopg2
-import socket
 
 # ==============================
-# 0. Forçar IPv4 (Ignorar IPv6)
-# ==============================
-original_getaddrinfo = socket.getaddrinfo
-
-def getaddrinfo_ipv4(host, port, *args, **kwargs):
-    # Retorna apenas endereços IPv4
-    infos = original_getaddrinfo(host, port, *args, **kwargs)
-    return [i for i in infos if i[0] == socket.AF_INET]
-
-socket.getaddrinfo = getaddrinfo_ipv4
-
-# ==============================
-# 1. Configurações do Banco de Dados PostgreSQL (Supabase)
+# 1. Lendo credenciais do st.secrets
 # ==============================
 DB_PARAMS = {
-    "host": "db.urytjzupeorabraufjef.supabase.co",
-    "port": 5432,
-    "database": "postgres",
-    "user": "postgres",
-    "password": "Bp@20081993",
-    "sslmode": "require"
+    "host": st.secrets["postgresql"]["host"],
+    "port": st.secrets["postgresql"]["port"],
+    "database": st.secrets["postgresql"]["database"],
+    "user": st.secrets["postgresql"]["user"],
+    "password": st.secrets["postgresql"]["password"],
+    "sslmode": st.secrets["postgresql"]["sslmode"],
 }
 
 # ==============================
-# 2. Conexão PostgreSQL com cache
+# 2. Conexão com PostgreSQL
 # ==============================
-@st.cache_resource
 def get_db_connection():
-    """Conexão PostgreSQL única por sessão."""
     try:
         conn = psycopg2.connect(**DB_PARAMS)
         return conn
@@ -42,11 +27,12 @@ def get_db_connection():
         return None
 
 # ==============================
-# 3. Setup do banco
+# 3. Setup do Banco (criação de tabelas)
 # ==============================
 def setup_db():
     conn = get_db_connection()
-    if conn is None: st.stop()
+    if conn is None: return
+
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
@@ -72,11 +58,13 @@ def setup_db():
             conn.commit()
     except Exception as e:
         st.error(f"Erro ao criar/verificar tabelas: {e}")
+    finally:
+        conn.close()
 
 setup_db()
 
 # ==============================
-# 4. Funções CRUD
+# 4. CRUD
 # ==============================
 def salvar_usuario(usuario, senha, admin=False):
     conn = get_db_connection()
@@ -93,6 +81,8 @@ def salvar_usuario(usuario, senha, admin=False):
     except Exception as e:
         st.error(f"Erro ao salvar usuário: {e}")
         return False
+    finally:
+        conn.close()
 
 def validar_login(usuario, senha):
     conn = get_db_connection()
@@ -107,6 +97,8 @@ def validar_login(usuario, senha):
     except Exception as e:
         st.error(f"Erro ao validar login: {e}")
         return False, False
+    finally:
+        conn.close()
 
 def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao):
     conn = get_db_connection()
@@ -123,88 +115,101 @@ def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao)
     except Exception as e:
         st.error(f"Erro ao salvar atividade: {e}")
         return False
+    finally:
+        conn.close()
 
-@st.cache_data(show_spinner="🔄 Carregando dados do PostgreSQL...")
-def load_data_from_db(reload_flag):
+def carregar_dados():
     conn = get_db_connection()
-    if conn is None:
+    if conn is None: 
         return pd.DataFrame(), pd.DataFrame()
     try:
-        usuarios_df = pd.read_sql("SELECT usuario, senha, admin FROM usuarios;", conn)
-        atividades_df = pd.read_sql("SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao FROM atividades ORDER BY data DESC;", conn)
+        usuarios_df = pd.read_sql("SELECT usuario, admin FROM usuarios;", conn)
+        atividades_df = pd.read_sql("""
+            SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao 
+            FROM atividades ORDER BY data DESC;
+        """, conn)
         return usuarios_df, atividades_df
     except Exception as e:
-        st.error(f"Erro ao carregar dados do DB: {e}")
+        st.error(f"Erro ao carregar dados: {e}")
         return pd.DataFrame(), pd.DataFrame()
-
-# Inicializa flag de recarga
-if "reload_flag" not in st.session_state:
-    st.session_state.reload_flag = 0
-
-usuarios_df, atividades_df = load_data_from_db(st.session_state.reload_flag)
+    finally:
+        conn.close()
 
 # ==============================
-# 5. Listas fixas
+# 5. Interface Streamlit
 # ==============================
-DESCRICOES = [
-    "1.001 - Gestão", "1.002 - Geral", "1.003 - Conselho", "1.004 - Treinamento e Desenvolvimento",
-    "2.001 - Gestão do administrativo", "2.002 - Administrativa", "2.003 - Jurídica", "2.004 - Financeira",
-    "2.006 - Fiscal", "2.007 - Infraestrutura TI", "2.008 - Treinamento interno", "2.011 - Análise de dados",
-    "2.012 - Logística de viagens", "2.013 - Prestação de contas", "3.001 - Prospecção de oportunidades",
-    "3.002 - Prospecção de temas", "3.003 - Administração comercial", "3.004 - Marketing Digital",
-    "3.005 - Materiais de apoio", "3.006 - Grupos de Estudo", "3.007 - Elaboração de POC/Piloto",
-    "3.008 - Elaboração e apresentação de proposta", "3.009 - Acompanhamento de proposta",
-    "3.010 - Reunião de acompanhamento de funil", "3.011 - Planejamento Estratégico/Comercial",
-    "3.012 - Sucesso do Cliente", "3.013 - Participação em eventos", "4.001 - Planejamento de projeto",
-    "4.002 - Gestão de projeto", "4.003 - Reuniões internas de trabalho", "4.004 - Reuniões externas de trabalho",
-    "4.005 - Pesquisa", "4.006 - Especificação de software", "4.007 - Desenvolvimento de software/rotinas",
-    "4.008 - Coleta e preparação de dados", "4.009 - Elaboração de estudos e modelos",
-    "4.010 - Confecção de relatórios técnicos", "4.011 - Confecção de apresentações técnicas",
-    "4.012 - Confecção de artigos técnicos", "4.013 - Difusão de resultados", "4.014 - Elaboração de documentação final",
-    "4.015 - Finalização do projeto", "5.001 - Gestão de desenvolvimento", "5.002 - Planejamento de projeto",
-    "5.003 - Gestão de projeto", "5.004 - Reuniões internas de trabalho", "5.005 - Reuniões externa de trabalho",
-    "5.006 - Pesquisa", "5.007 - Coleta e preparação de dados", "5.008 - Modelagem", "5.009 - Análise de tarefa",
-    "5.010 - Especificação de tarefa", "5.011 - Correção de bug", "5.012 - Desenvolvimento de melhorias",
-    "5.013 - Desenvolvimento de novas funcionalidades", "5.014 - Desenvolvimento de integrações",
-    "5.015 - Treinamento interno", "5.016 - Documentação", "5.017 - Atividades gerenciais", "5.018 - Estudos"
-]
+DESCRICOES = ["1.001 - Gestão", "1.002 - Geral", "2.001 - Gestão administrativa", "5.012 - Desenvolvimento de melhorias"]
+PROJETOS = ["101-0 Diretoria Executiva", "102-0 Diretoria Administrativa", "113-0 Produto ARIES"]
 
-PROJETOS = [
-    "101-0 (Interno) Diretoria Executiva", "102-0 (Interno) Diretoria Administrativa",
-    "103-0 (Interno) Diretoria de Engenharia", "104-0 (Interno) Diretoria de Negócios",
-    "105-0 (Interno) Diretoria de Produtos", "106-0 (Interno) Diretoria de Tecnologia",
-    "107-0 (Interno) Departamento Administrativo", "108-0 (Interno) Departamento de Gente e Cultura",
-    "109-0 (Interno) Departamento de Infraestrutura", "110-0 (Interno) Departamento de Marketing",
-    "111-0 (Interno) Departamento de Operação", "112-0 (Interno) Departamento de Sucesso do Cliente",
-    "113-0 (Interno) Produto ARIES", "114-0 (Interno) Produto ActionWise", "115-0 (Interno) Produto Carga Base"
-]
-
-# ==============================
-# 6. Interface Streamlit
-# ==============================
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
     st.session_state["admin"] = False
 
-# --- Tela de Login ---
+usuarios_df, atividades_df = carregar_dados()
+
 if st.session_state["usuario"] is None:
-    st.title("🔐 Login (PostgreSQL)")
+    st.title("🔐 Login")
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
-    
     if st.button("Entrar"):
-        usuarios_df, atividades_df = load_data_from_db(st.session_state.reload_flag)
         ok, admin = validar_login(usuario, senha)
         if ok:
             st.session_state["usuario"] = usuario
             st.session_state["admin"] = admin
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Usuário ou senha incorretos")
-
-# --- App logado ---
 else:
     st.sidebar.markdown(f"**Usuário:** {st.session_state['usuario']}")
     if st.sidebar.button("Sair"):
         st.session_state["usuario"] = None
         st.session_state["admin"] = False
+        st.rerun()
+
+    abas = ["Lançar Atividade", "Minhas Atividades"]
+    if st.session_state["admin"]:
+        abas += ["Gerenciar Usuários", "Consolidado"]
+
+    aba = st.sidebar.radio("Menu", abas)
+
+    if aba == "Gerenciar Usuários" and st.session_state["admin"]:
+        st.header("👥 Gerenciar Usuários")
+        with st.form("form_add_user"):
+            novo_usuario = st.text_input("Usuário")
+            nova_senha = st.text_input("Senha", type="password")
+            admin_check = st.checkbox("Admin")
+            if st.form_submit_button("Adicionar"):
+                if salvar_usuario(novo_usuario, nova_senha, admin_check):
+                    st.success("Usuário adicionado!")
+                    st.rerun()
+        st.dataframe(usuarios_df, use_container_width=True)
+
+    elif aba == "Lançar Atividade":
+        st.header("📝 Lançar Atividade")
+        with st.form("form_atividade"):
+            data = st.date_input("Data", datetime.today())
+            descricao = st.selectbox("Descrição", DESCRICOES)
+            projeto = st.selectbox("Projeto", PROJETOS)
+            porcentagem = st.slider("Porcentagem", 0, 100, 100)
+            observacao = st.text_area("Observação")
+            if st.form_submit_button("Salvar"):
+                if observacao.strip():
+                    if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
+                        st.success("Atividade salva!")
+                        st.rerun()
+                else:
+                    st.error("A observação é obrigatória.")
+
+    elif aba == "Minhas Atividades":
+        st.header("📊 Minhas Atividades")
+        minhas = atividades_df[atividades_df["usuario"] == st.session_state["usuario"]]
+        if minhas.empty:
+            st.info("Nenhuma atividade encontrada.")
+        else:
+            st.dataframe(minhas, use_container_width=True)
+
+    elif aba == "Consolidado" and st.session_state["admin"]:
+        st.header("📑 Consolidado")
+        st.dataframe(atividades_df, use_container_width=True)
+
+
