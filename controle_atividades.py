@@ -7,6 +7,7 @@ import plotly.express as px
 # ==============================
 # 1. Credenciais PostgreSQL
 # ==============================
+# Nota: st.secrets deve estar configurado no seu ambiente Streamlit
 DB_PARAMS = {
     "host": st.secrets["postgresql"]["host"],
     "port": st.secrets["postgresql"]["port"],
@@ -20,17 +21,19 @@ DB_PARAMS = {
 # 2. Conexão com PostgreSQL
 # ==============================
 def get_db_connection():
+    """Tenta estabelecer a conexão com o banco de dados e retorna o objeto de conexão."""
     try:
         conn = psycopg2.connect(**DB_PARAMS)
         return conn
     except Exception as e:
-        st.error(f"❌ Erro ao conectar ao banco de dados: {e}")
+        # st.error(f"❌ Erro ao conectar ao banco de dados: {e}")
         return None
 
 # ==============================
 # 3. Setup do Banco (criação de tabelas)
 # ==============================
 def setup_db():
+    """Cria as tabelas 'usuarios' e 'atividades' se elas não existirem."""
     conn = get_db_connection()
     if conn is None: return
     try:
@@ -64,9 +67,10 @@ def setup_db():
 setup_db()
 
 # ==============================
-# 4. CRUD
+# 4. CRUD e Consultas
 # ==============================
 def salvar_usuario(usuario, senha, admin=False):
+    """Salva um novo usuário (ou ignora se já existir)."""
     conn = get_db_connection()
     if conn is None: return False
     try:
@@ -85,10 +89,13 @@ def salvar_usuario(usuario, senha, admin=False):
         conn.close()
 
 def validar_login(usuario, senha):
+    """Verifica as credenciais de login e retorna status e privilégio de admin."""
     conn = get_db_connection()
     if conn is None: return False, False
     try:
         with conn.cursor() as cursor:
+            # ATENÇÃO: Em um ambiente de produção, a senha NÃO deve ser armazenada em texto puro.
+            # Use hashing (ex: bcrypt) para segurança.
             cursor.execute("SELECT senha, admin FROM usuarios WHERE usuario = %s;", (usuario,))
             result = cursor.fetchone()
             if result and result[0] == senha:
@@ -100,7 +107,31 @@ def validar_login(usuario, senha):
     finally:
         conn.close()
 
+def calcular_porcentagem_existente(usuario, data):
+    """Calcula a soma das porcentagens de atividades já registradas para o usuário na data."""
+    conn = get_db_connection()
+    if conn is None:
+        # Se falhar, retorna um valor alto para impedir o lançamento e forçar o erro no UI.
+        return 101 
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT COALESCE(SUM(porcentagem), 0)
+                FROM atividades
+                WHERE usuario = %s AND data = %s;
+            """, (usuario, data))
+            result = cursor.fetchone()
+            # COALESCE garante que se não houver atividades, o resultado será 0.
+            return result[0] if result else 0 
+    except Exception as e:
+        st.error(f"Erro ao calcular porcentagem existente: {e}")
+        return 101 # Retorna 101 em caso de erro no DB para impedir lançamento
+    finally:
+        if conn:
+            conn.close()
+
 def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao):
+    """Salva uma nova atividade no banco de dados."""
     conn = get_db_connection()
     if conn is None: return False
     try:
@@ -119,6 +150,7 @@ def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao)
         conn.close()
 
 def apagar_atividade(atividade_id):
+    """Apaga uma atividade específica pelo ID."""
     conn = get_db_connection()
     if conn is None: return False
     try:
@@ -133,6 +165,7 @@ def apagar_atividade(atividade_id):
         conn.close()
 
 def carregar_dados():
+    """Carrega todos os usuários e atividades do banco de dados para DataFrames."""
     conn = get_db_connection()
     if conn is None: 
         return pd.DataFrame(), pd.DataFrame()
@@ -217,7 +250,7 @@ if "usuario" not in st.session_state:
 usuarios_df, atividades_df = carregar_dados()
 
 # ==============================
-# 7. Login
+# 7. Login e Navegação
 # ==============================
 if st.session_state["usuario"] is None:
     st.title("🔐 Login")
@@ -260,7 +293,7 @@ else:
         st.dataframe(usuarios_df, use_container_width=True)
 
     # ==============================
-    # Lançar Atividade
+    # Lançar Atividade (Com Validação de 100%)
     # ==============================
     elif aba == "Lançar Atividade":
         st.header("📝 Lançar Atividade")
@@ -268,13 +301,36 @@ else:
             data = st.date_input("Data", datetime.today())
             descricao = st.selectbox("Descrição", DESCRICOES)
             projeto = st.selectbox("Projeto", PROJETOS)
-            porcentagem = st.slider("Porcentagem", 0, 100, 100)
+            # A porcentagem mínima deve ser 1 para evitar lançamentos vazios
+            porcentagem = st.slider("Porcentagem", 1, 100, 100) 
             observacao = st.text_area("Observação")
+            
             if st.form_submit_button("Salvar"):
                 if observacao.strip():
-                    if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
-                        st.success("Atividade salva!")
-                        st.experimental_rerun()
+                    
+                    # --- VALIDAÇÃO DE 100% DIÁRIO ---
+                    # 1. Obter a soma das porcentagens já lançadas para o dia e usuário
+                    total_existente = calcular_porcentagem_existente(st.session_state["usuario"], data)
+                    novo_total = total_existente + porcentagem
+
+                    # 2. Verificar se o novo total excede 100%
+                    if novo_total > 100:
+                        st.error(
+                            f"⚠️ **Alocação Excedida!** O total de porcentagem lançado para **{data.strftime('%d/%m/%Y')}** "
+                            f"é de **{total_existente}%**. A nova atividade de **{porcentagem}%** faria o total ser **{novo_total}%**, "
+                            f"que excede o limite de 100%."
+                        )
+                    else:
+                        # 3. Salvar se a validação passar
+                        if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
+                            # Se for 100%, mostra uma mensagem especial.
+                            if novo_total == 100:
+                                st.balloons()
+                                st.success("🎉 Atividade salva! Você completou a alocação de 100% para este dia.")
+                            else:
+                                st.success(f"Atividade salva! Total alocado no dia: {novo_total}%.")
+                            st.experimental_rerun()
+                            
                 else:
                     st.error("A observação é obrigatória.")
 
@@ -287,31 +343,91 @@ else:
         if minhas.empty:
             st.info("Nenhuma atividade encontrada.")
         else:
-            # Botão para apagar atividade
-            for idx, row in minhas.iterrows():
-                st.write(f"**{row['data'].strftime('%Y-%m')} - {row['descricao']}** ({row['porcentagem']}%)")
-                st.write(f"Projeto: {row['projeto']}")
-                st.write(f"Observação: {row['observacao']}")
-                if st.button(f"Apagar ID {row['id']}", key=f"del_{row['id']}"):
-                    if apagar_atividade(row['id']):
-                        st.success("Atividade apagada!")
-                        st.experimental_rerun()
+            # Filtro por Mês
+            minhas['data_mes'] = minhas['data'].dt.strftime('%Y-%m')
+            meses_disponiveis = minhas['data_mes'].unique()
+            mes_selecionado = st.selectbox("Filtrar por mês/ano", sorted(meses_disponiveis, reverse=True))
+            df_filtro = minhas[minhas['data_mes'] == mes_selecionado].sort_values(by='data', ascending=False)
+            
+            st.markdown("---")
+
+            # Lista de Atividades
+            for idx, row in df_filtro.iterrows():
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(f"📅 **{row['data'].strftime('%d/%m/%Y')}** - **{row['descricao']}** ({row['porcentagem']}%)")
+                    st.markdown(f"**Projeto:** *{row['projeto']}*")
+                    st.markdown(f"**Obs:** {row['observacao']}")
+                with col2:
+                    if col2.button("🗑️ Apagar", key=f"del_{row['id']}"):
+                        if apagar_atividade(row['id']):
+                            st.success("Atividade apagada!")
+                            st.experimental_rerun()
+                st.markdown("---")
+
             # Gráfico de pizza
-            meses = minhas['mes'].unique()
-            mes_selecionado = st.selectbox("Filtrar por mês", sorted(meses))
-            df_filtro = minhas[minhas['mes'] == mes_selecionado]
-            if not df_filtro.empty:
-                fig = px.pie(df_filtro, names='descricao', values='porcentagem', title=f"Distribuição de Atividades - Mês {mes_selecionado}")
-                st.plotly_chart(fig, use_container_width=True)
+            st.subheader(f"Distribuição de Projetos - {mes_selecionado}")
+            df_agrupado_projeto = df_filtro.groupby('projeto')['porcentagem'].sum().reset_index()
+            fig_projeto = px.pie(
+                df_agrupado_projeto, 
+                names='projeto', 
+                values='porcentagem', 
+                title='Alocação por Projeto no Mês',
+                hole=.3,
+            )
+            st.plotly_chart(fig_projeto, use_container_width=True)
 
     # ==============================
     # Consolidado para Admin
     # ==============================
     elif aba == "Consolidado" and st.session_state["admin"]:
-        st.header("📑 Consolidado")
-        if not atividades_df.empty:
-            fig = px.pie(atividades_df, names='descricao', values='porcentagem', title="Distribuição de Atividades - Todos")
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(atividades_df, use_container_width=True)
+        st.header("📑 Consolidado Geral de Atividades")
+        
+        if atividades_df.empty:
+            st.info("Nenhuma atividade lançada no sistema.")
+        else:
+            # Filtros Admin
+            col_admin1, col_admin2, col_admin3 = st.columns(3)
+            
+            usuarios_unicos = sorted(atividades_df['usuario'].unique())
+            usuario_selecionado = col_admin1.selectbox("Filtrar por Usuário", ["Todos"] + usuarios_unicos)
+            
+            atividades_df['data_mes'] = atividades_df['data'].dt.strftime('%Y-%m')
+            meses_unicos = sorted(atividades_df['data_mes'].unique(), reverse=True)
+            mes_selecionado_admin = col_admin2.selectbox("Filtrar por Mês/Ano", ["Todos"] + meses_unicos)
+            
+            df_consolidado = atividades_df.copy()
 
+            if usuario_selecionado != "Todos":
+                df_consolidado = df_consolidado[df_consolidado['usuario'] == usuario_selecionado]
+            
+            if mes_selecionado_admin != "Todos":
+                df_consolidado = df_consolidado[df_consolidado['data_mes'] == mes_selecionado_admin]
 
+            st.markdown("---")
+            
+            if not df_consolidado.empty:
+                st.subheader("Visualização dos Dados Filtrados")
+                
+                # Gráfico de Barras: % alocada por dia para o usuário/mês filtrado
+                df_diario = df_consolidado.groupby(['data'])['porcentagem'].sum().reset_index()
+                df_diario.columns = ['Data', 'Total Alocado (%)']
+                
+                fig_diario = px.bar(
+                    df_diario, 
+                    x='Data', 
+                    y='Total Alocado (%)', 
+                    title=f"Total de Porcentagem Alocada por Dia",
+                    color='Total Alocado (%)',
+                    color_continuous_scale=px.colors.sequential.Plotly3,
+                    height=400
+                )
+                fig_diario.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Ideal", annotation_position="top left")
+                st.plotly_chart(fig_diario, use_container_width=True)
+                
+                # Tabela de dados detalhada
+                st.subheader("Tabela de Dados Detalhada")
+                st.dataframe(df_consolidado.drop(columns=['data_mes']), use_container_width=True)
+
+            else:
+                st.info("Nenhum dado encontrado com os filtros selecionados.")
