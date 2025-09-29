@@ -612,10 +612,28 @@ else:
                     
                     # 4. Limpeza e Transformação dos Dados de Atividade
                     
-                    # CORREÇÃO: Forçar as colunas 'mes' e 'ano' a serem numéricas para pd.to_datetime
-                    # Primeiro preenche NaNs com 0 para evitar erros de tipo
-                    df_import['mes'] = df_import['mes'].fillna(0).astype(int)
-                    df_import['ano'] = df_import['ano'].fillna(0).astype(int)
+                    # 4.1. Conversão Rígida e Limpeza de Dados Sujos/Finais
+                    
+                    # Transforma em numérico, forçando erro para NaN, depois remove NaNs para limpar dados sujos
+                    df_import['mes'] = pd.to_numeric(df_import['mes'], errors='coerce')
+                    df_import['ano'] = pd.to_numeric(df_import['ano'], errors='coerce')
+                    df_import['porcentagem'] = pd.to_numeric(df_import['porcentagem'], errors='coerce')
+                    
+                    # Remove linhas que não têm Mês, Ano ou Porcentagem válidos (inclui sumários e rodapés)
+                    df_import.dropna(subset=['mes', 'ano', 'porcentagem'], inplace=True)
+                    
+                    # Converte para INT e filtra anos inválidos (como 0)
+                    df_import['mes'] = df_import['mes'].astype(int)
+                    df_import['ano'] = df_import['ano'].astype(int)
+                    
+                    # Filtra meses e anos que não fazem sentido (ex: Mês 0, Ano 0)
+                    df_import = df_import[
+                        (df_import['mes'] >= 1) & (df_import['mes'] <= 12) & 
+                        (df_import['ano'] >= 1900)
+                    ]
+                    
+                    
+                    # 4.2. Geração da Data e Conversão da Porcentagem
                     
                     # a) Criar a coluna 'data' com o dia 1
                     df_import['data'] = pd.to_datetime(df_import[['ano', 'mes']].assign(dia=1))
@@ -630,7 +648,7 @@ else:
                     colunas_finais = ['usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao']
                     df_para_inserir = df_import[colunas_finais]
 
-                    st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades.")
+                    st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades. ({len(usuarios_csv) - len(df_para_inserir)} linhas inválidas removidas.)")
                     
                     # 5. Botão de Confirmação para Inserção das Atividades
                     if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final"):
