@@ -11,15 +11,16 @@ import io # Importação necessária para ler arquivos carregados
 # ==============================
 # --- CONFIGURAÇÕES DE ESTILO E LOGO (PERSONALIZAR ESTES VALORES) ---
 # Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
-LOGO_URL = "files/Logo Sinapsis 1.jpg" # Caminho para o logo carregado
-COR_PRIMARIA = "#313191" # Azul Principal (Usado para botões, realces, e barras primárias)
+LOGO_URL = "files/LOGO_01 3.png" # NOVO LOGO PNG
+COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO = "#FFFFFF"    # Fundo Branco Limpo
+COR_FUNDO_APP = "#FFFFFF"    # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # --------------------------------------------------------------------
 
 # Paleta de cores customizada para Plotly (usada nos gráficos)
-SINAPSIS_PALETTE = [COR_PRIMARIA, COR_SECUNDARIA, COR_CINZA, "#888888", "#C0C0C0"]
+SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -255,7 +256,7 @@ def bulk_insert_usuarios(user_list):
             return inserted_count, "✅ Sucesso! Usuários pré-cadastrados com êxito."
     except Exception as e:
         conn.rollback()
-        return 0, f"❌ Erro durante o pré-cadastro de usuários: {e}"
+        return 0, f"Erro durante o pré-cadastro de usuários: {e}"
     finally:
         conn.close()
 
@@ -443,8 +444,10 @@ st.markdown(
     <style>
         /* Define a cor primária (usada pelo Streamlit para botões, realces, etc.) */
         :root {{
-            --primary-color: {COR_PRIMARIA};
+            --primary-color: {COR_SECUNDARIA}; /* Usando o Ciano (#19c0d1) para botões de ação do Streamlit */
+            --secondary-background-color: {COR_FUNDO_SIDEBAR}; /* NOVO: Fundo da Sidebar na cor principal */
         }}
+        
         /* Estilo para fixar o logo no topo do sidebar */
         .css-1lcbmhc {{ /* Seletor comum para o sidebar */
             padding-top: 0.5rem;
@@ -460,14 +463,31 @@ st.markdown(
             border-radius: 8px; 
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }}
-        /* Força a cor de fundo */
+        
+        /* Força a cor de fundo do corpo principal do APP */
         .stApp {{
-            background-color: {COR_FUNDO};
+            background-color: {COR_FUNDO_APP};
         }}
         
-        /* Ajuste de cor do texto do menu lateral para combinar com o fundo */
-        .css-vk3ghh {{ /* Título do menu lateral (Usuário:) */
-            color: {COR_CINZA} !important; 
+        /* Ajuste de cor do texto no sidebar para BRANCO (Fundo Escuro) */
+        .css-vk3ghh, .css-1y4cbu2, .css-1dp5vir {{ 
+            color: #FFFFFF !important; 
+        }}
+        /* Cores do rádio button no sidebar para BRANCO */
+        .css-1dp5vir p, .css-1dp5vir label {{
+            color: #FFFFFF !important;
+        }}
+        .css-1dp5vir button, .css-vk3ghh button {{
+             color: #FFFFFF !important;
+             background-color: {COR_FUNDO_SIDEBAR}; /* Para o botão Sair */
+             border: 1px solid #FFFFFF30;
+        }}
+        .css-vk3ghh button:hover {{
+             background-color: {COR_SECUNDARIA} !important;
+        }}
+        .css-1dp5vir .st-bb {{ /* Seleção ativa do rádio button */
+            background-color: {COR_SECUNDARIA} !important;
+            border-color: {COR_SECUNDARIA} !important;
         }}
         
         /* Ajusta o estilo dos gráficos Plotly para serem mais planos */
@@ -861,7 +881,7 @@ else:
                     title=f"Total de Porcentagem Alocada por Mês",
                     # *** USO DA PALETA SINAPSIS ***
                     color='Total Alocado (%)',
-                    color_continuous_scale=px.colors.sequential.Bluyl, # Mantido um scale sequential para valores
+                    color_continuous_scale=px.colors.sequential.Plotly3, # Mantido um scale sequential para valores
                     height=400
                 )
                 fig_mensal.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Ideal", annotation_position="top left")
@@ -1075,4 +1095,3 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
