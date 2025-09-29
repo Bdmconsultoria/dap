@@ -5,19 +5,40 @@ import psycopg2
 import psycopg2.extras # Importação necessária para inserção em massa
 import plotly.express as px
 import io # Importação necessária para ler arquivos carregados
+import base64 # Necessário para codificar o logo
 
 # ==============================
 # 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
 # ==============================
 # --- CONFIGURAÇÕES DE ESTILO E LOGO (PERSONALIZAR ESTES VALORES) ---
 # Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
-LOGO_URL = "files/LOGO_01 3.png" # NOVO LOGO PNG
+LOGO_PATH = "LOGO_01 3.png" # NOVO LOGO PNG
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
 COR_FUNDO_APP = "#FFFFFF"    # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # --------------------------------------------------------------------
+
+# Função para carregar e codificar o logo em Base64
+def get_base64_of_file(path):
+    """Lê um arquivo e retorna seu conteúdo codificado em Base64."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except FileNotFoundError:
+        # Se o arquivo não for encontrado no caminho local, retorna um placeholder
+        st.warning(f"Aviso: Arquivo de logo '{path}' não encontrado. Usando placeholder.")
+        return None
+
+# Tenta carregar o logo e gerar a URL em Base64
+base64_logo_data = get_base64_of_file(LOGO_PATH)
+if base64_logo_data:
+    LOGO_URL = f"data:image/png;base64,{base64_logo_data}"
+else:
+    # URL de um placeholder simples caso a leitura falhe
+    LOGO_URL = "https://placehold.co/150x50/313191/FFFFFF?text=SINAPSIS"
 
 # Paleta de cores customizada para Plotly (usada nos gráficos)
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
@@ -448,9 +469,26 @@ st.markdown(
             --secondary-background-color: {COR_FUNDO_SIDEBAR}; 
         }}
         
-        /* CORREÇÃO VISUAL: Forçar a cor de fundo da sidebar para o Azul Principal */
-        .st-emotion-cache-x78ch, .st-emotion-cache-1c19ghh {{ /* Seletor de fundo do sidebar */
+        /* CORREÇÃO VISUAL DE FUNDO E TEXTO DA SIDEBAR (Azul Principal e Texto Branco) */
+        /* Seletores para o fundo da sidebar e containers */
+        [data-testid="stSidebar"] {{
             background-color: {COR_FUNDO_SIDEBAR};
+        }}
+        /* Seletores para o texto dentro da sidebar (garante que fique branco) */
+        [data-testid="stSidebar"] * {{
+            color: #FFFFFF !important;
+        }}
+        /* Ajuste do fundo dos botões Sair/Rádio buttons */
+        [data-testid="stSidebar"] .stButton > button {{
+             background-color: {COR_FUNDO_SIDEBAR} !important;
+             border: 1px solid #FFFFFF30;
+             color: #FFFFFF !important;
+        }}
+        [data-testid="stSidebar"] .stButton > button:hover {{
+             background-color: {COR_SECUNDARIA} !important;
+        }}
+        [data-testid="stSidebar"] .st-b5.st-bd.st-be.st-bf.st-bg.st-bh.st-bi.st-bj.st-bk.st-bl.st-bm.st-bn.st-bo.st-bp.st-bq.st-br.st-bs.st-bt.st-bu.st-bv.st-bw.st-bx {{
+             background-color: {COR_SECUNDARIA} !important; /* Opção de rádio selecionada */
         }}
         
         /* Estilo para fixar o logo no topo do sidebar */
@@ -472,27 +510,6 @@ st.markdown(
         /* Força a cor de fundo do corpo principal do APP */
         .stApp {{
             background-color: {COR_FUNDO_APP};
-        }}
-        
-        /* Ajuste de cor do texto no sidebar para BRANCO (Fundo Escuro) */
-        .css-vk3ghh, .css-1y4cbu2, .css-1dp5vir, .st-emotion-cache-1nmkcm {{ 
-            color: #FFFFFF !important; 
-        }}
-        /* Cores do rádio button no sidebar para BRANCO */
-        .css-1dp5vir p, .css-1dp5vir label {{
-            color: #FFFFFF !important;
-        }}
-        .css-1dp5vir button, .css-vk3ghh button {{
-             color: #FFFFFF !important;
-             background-color: {COR_FUNDO_SIDEBAR}; /* Para o botão Sair */
-             border: 1px solid #FFFFFF30;
-        }}
-        .css-vk3ghh button:hover {{
-             background-color: {COR_SECUNDARIA} !important;
-        }}
-        .css-1dp5vir .st-bb {{ /* Seleção ativa do rádio button */
-            background-color: {COR_SECUNDARIA} !important;
-            border-color: {COR_SECUNDARIA} !important;
         }}
         
         /* Ajusta o estilo dos gráficos Plotly para serem mais planos */
@@ -1100,5 +1117,7 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
+
 
 
