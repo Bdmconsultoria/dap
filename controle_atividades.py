@@ -13,7 +13,7 @@ import io # Importação necessária para ler arquivos carregados
 # Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
 LOGO_URL = "files/LOGO_01 3.png" # NOVO LOGO PNG
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
-COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos)
+COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
 COR_FUNDO_APP = "#FFFFFF"    # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
@@ -445,7 +445,12 @@ st.markdown(
         /* Define a cor primária (usada pelo Streamlit para botões, realces, etc.) */
         :root {{
             --primary-color: {COR_SECUNDARIA}; /* Usando o Ciano (#19c0d1) para botões de ação do Streamlit */
-            --secondary-background-color: {COR_FUNDO_SIDEBAR}; /* NOVO: Fundo da Sidebar na cor principal */
+            --secondary-background-color: {COR_FUNDO_SIDEBAR}; 
+        }}
+        
+        /* CORREÇÃO VISUAL: Forçar a cor de fundo da sidebar para o Azul Principal */
+        .st-emotion-cache-x78ch, .st-emotion-cache-1c19ghh {{ /* Seletor de fundo do sidebar */
+            background-color: {COR_FUNDO_SIDEBAR};
         }}
         
         /* Estilo para fixar o logo no topo do sidebar */
@@ -470,7 +475,7 @@ st.markdown(
         }}
         
         /* Ajuste de cor do texto no sidebar para BRANCO (Fundo Escuro) */
-        .css-vk3ghh, .css-1y4cbu2, .css-1dp5vir {{ 
+        .css-vk3ghh, .css-1y4cbu2, .css-1dp5vir, .st-emotion-cache-1nmkcm {{ 
             color: #FFFFFF !important; 
         }}
         /* Cores do rádio button no sidebar para BRANCO */
@@ -1095,3 +1100,5 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
+
