@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import psycopg2
+import psycopg2.extras # Importação necessária para inserção em massa
 import plotly.express as px
+import io # Importação necessária para ler arquivos carregados
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -187,6 +189,67 @@ def carregar_dados():
     finally:
         conn.close()
 
+def bulk_insert_usuarios(user_list):
+    """Insere usuários inexistentes no banco de dados. Senha padrão: '123'."""
+    conn = get_db_connection()
+    if conn is None:
+        return 0, "❌ Falha na conexão com o banco de dados."
+    
+    # Preparar a lista de tuplas (usuario, senha padrão, admin=False)
+    # Todos os usuários importados terão a senha '123' e não serão administradores por padrão.
+    data_list = [(user, '123', False) for user in user_list]
+
+    query = """
+        INSERT INTO usuarios (usuario, senha, admin)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (usuario) DO NOTHING
+    """
+    
+    try:
+        with conn.cursor() as cursor:
+            # Usar execute_batch para inserção eficiente
+            psycopg2.extras.execute_batch(cursor, query, data_list)
+            # rowcount retorna o número de linhas realmente afetadas (inseridas)
+            inserted_count = cursor.rowcount
+            conn.commit()
+            return inserted_count, "✅ Sucesso! Usuários pré-cadastrados com êxito."
+    except Exception as e:
+        conn.rollback()
+        return 0, f"❌ Erro durante o pré-cadastro de usuários: {e}"
+    finally:
+        conn.close()
+
+
+def bulk_insert_atividades(df_to_insert):
+    """Insere atividades em massa no banco de dados usando psycopg2.extras.execute_batch."""
+    conn = get_db_connection()
+    if conn is None:
+        return 0, "❌ Falha na conexão com o banco de dados."
+    
+    # 1. Preparar os dados para inserção
+    # O DataFrame deve ter as colunas na ordem correta: (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
+    data_list = [tuple(row) for row in df_to_insert[[
+        'usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao'
+    ]].values]
+
+    query = """
+        INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    
+    try:
+        with conn.cursor() as cursor:
+            # Usar execute_batch para inserção eficiente
+            psycopg2.extras.execute_batch(cursor, query, data_list)
+            conn.commit()
+            return len(data_list), "✅ Sucesso! Dados importados com êxito."
+    except Exception as e:
+        conn.rollback()
+        return 0, f"❌ Erro durante a importação em massa: {e}"
+    finally:
+        conn.close()
+
+
 # ==============================
 # 5. Dados fixos
 # ==============================
@@ -252,6 +315,7 @@ if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
     st.session_state["admin"] = False
 
+# Carrega os dados sempre que o estado de sessão muda ou a página recarrega
 usuarios_df, atividades_df = carregar_dados()
 
 # ==============================
@@ -278,7 +342,8 @@ else:
 
     abas = ["Lançar Atividade", "Minhas Atividades"]
     if st.session_state["admin"]:
-        abas += ["Gerenciar Usuários", "Consolidado"]
+        # Adiciona a aba de importação de dados
+        abas += ["Gerenciar Usuários", "Consolidado", "Importar Dados"]
 
     aba = st.sidebar.radio("Menu", abas)
 
@@ -438,3 +503,95 @@ else:
 
             else:
                 st.info("Nenhum dado encontrado com os filtros selecionados.")
+    
+    # ==============================
+    # Importar Dados (Admin)
+    # ==============================
+    elif aba == "Importar Dados" and st.session_state["admin"]:
+        st.header("⬆️ Importação de Dados em Massa (Admin)")
+        st.warning(
+            "⚠️ **Aviso de Data:** Seu arquivo CSV contém apenas Mês e Ano. O sistema usará o **dia 1** "
+            "do mês para preencher o campo `data` (data) no banco de dados. "
+            "A porcentagem será multiplicada por 100 (ex: 0.25 -> 25%)."
+        )
+        
+        uploaded_file = st.file_uploader("Carregar arquivo CSV ou XLSX com lançamentos", type=["csv", "xlsx"])
+        
+        if uploaded_file:
+            try:
+                # 1. Leitura do Arquivo
+                if uploaded_file.name.endswith('.csv'):
+                    df_import = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8')
+                elif uploaded_file.name.endswith('.xlsx'):
+                    # Tenta ler como CSV com delimitador comum se o arquivo for renomeado
+                     df_import = pd.read_csv(uploaded_file, sep=',', encoding='utf-8')
+
+                st.subheader("Pré-visualização dos Dados Carregados")
+                st.dataframe(df_import.head())
+                
+                # 2. Renomear e Mapear Colunas
+                colunas_mapeamento = {
+                    'Nome': 'usuario',
+                    'Mês': 'mes',
+                    'Ano': 'ano',
+                    'Descrição': 'descricao',
+                    'Projeto': 'projeto',
+                    'Porcentagem': 'porcentagem',
+                    'Observação (Opcional)': 'observacao'
+                }
+                
+                df_import.rename(columns=colunas_mapeamento, inplace=True)
+                
+                # Garantir que a coluna 'usuario' exista após a renomeação
+                if 'usuario' not in df_import.columns:
+                    raise KeyError("'Nome' ou 'usuario' não encontrada no arquivo após renomeação.")
+
+                # 3. PRÉ-CADASTRO DE USUÁRIOS
+                usuarios_csv = df_import['usuario'].unique().tolist()
+                
+                with st.spinner(f"Verificando e pré-cadastrando {len(usuarios_csv)} usuários..."):
+                    
+                    # Filtra usuários que já existem no banco para não tentar inserí-los
+                    usuarios_existentes_db = usuarios_df['usuario'].tolist()
+                    usuarios_para_inserir = [u for u in usuarios_csv if u not in usuarios_existentes_db]
+
+                    if usuarios_para_inserir:
+                        inserted_count, user_msg = bulk_insert_usuarios(usuarios_para_inserir)
+                        st.info(f"Usuários encontrados no arquivo: **{len(usuarios_csv)}**. Novos usuários cadastrados: **{inserted_count}** (senha padrão: '123').")
+                    else:
+                        st.info(f"Todos os {len(usuarios_csv)} usuários do arquivo já estão cadastrados no sistema.")
+                
+                # 4. Limpeza e Transformação dos Dados de Atividade
+                
+                # a) Criar a coluna 'data'
+                df_import['data'] = pd.to_datetime(df_import[['ano', 'mes']].assign(dia=1))
+                
+                # b) Converter 'porcentagem' (float decimal) para INT (0-100)
+                df_import['porcentagem'] = (df_import['porcentagem'] * 100).round().astype(int)
+                
+                # c) Tratar observações nulas (NaN)
+                df_import['observacao'].fillna('', inplace=True)
+
+                # d) Garantir que apenas colunas necessárias e transformadas existam
+                colunas_finais = ['usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao']
+                df_para_inserir = df_import[colunas_finais]
+
+                st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades.")
+                
+                # 5. Botão de Confirmação para Inserção das Atividades
+                if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final"):
+                    with st.spinner('Importando dados de atividades em massa...'):
+                        linhas_inseridas, mensagem = bulk_insert_atividades(df_para_inserir)
+                    
+                    if linhas_inseridas > 0:
+                        st.success(f"🎉 {linhas_inseridas} registros de atividades importados com sucesso!")
+                    else:
+                        st.error(mensagem)
+                    
+                    # Recarrega os dados globais e o Streamlit
+                    st.experimental_rerun()
+                    
+            except KeyError as e:
+                st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
+            except Exception as e:
+                st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
