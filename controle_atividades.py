@@ -527,26 +527,43 @@ else:
         
         if uploaded_file:
             try:
-                # 1. Leitura do Arquivo (Ajuste de ENCODING)
+                # 1. Leitura do Arquivo (Ajuste de ENCODING e DELIMITADOR)
+                df_import = None
+                
                 if uploaded_file.name.endswith('.csv'):
                     uploaded_file.seek(0)
-                    # Tenta ler com 'latin-1' ou 'cp1252' se 'utf-8' falhar, o que resolve o problema de acentuação em CSVs de planilhas.
+                    file_content = uploaded_file.getvalue().decode("utf-8", errors='ignore')
+
+                    # Tenta detecção automática de delimitador (sep=None) + UTF-8
                     try:
-                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=None, engine='python')
-                    except UnicodeDecodeError:
-                        uploaded_file.seek(0)
-                        st.warning("Falha na decodificação UTF-8. Tentando 'latin-1' (padrão brasileiro).")
-                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("latin-1")), sep=None, engine='python')
+                        df_import = pd.read_csv(io.StringIO(file_content), sep=None, engine='python')
+                    except Exception:
+                        # Tenta Delimitador Ponto e Vírgula (padrão brasileiro) + Latin-1
+                        try:
+                            uploaded_file.seek(0)
+                            file_content_latin1 = uploaded_file.getvalue().decode("latin-1")
+                            st.info("Tentando leitura com delimitador ';'(ponto e vírgula) e codificação 'latin-1'.")
+                            df_import = pd.read_csv(io.StringIO(file_content_latin1), sep=';', encoding='latin-1', engine='python')
+                        except Exception as e_latin1:
+                             # Se falhar, tenta Delimitador Vírgula (padrão americano) + Latin-1
+                            try:
+                                uploaded_file.seek(0)
+                                file_content_latin1 = uploaded_file.getvalue().decode("latin-1")
+                                st.info("Tentando leitura com delimitador ','(vírgula) e codificação 'latin-1'.")
+                                df_import = pd.read_csv(io.StringIO(file_content_latin1), sep=',', encoding='latin-1', engine='python')
+                            except Exception as e_comma:
+                                raise Exception(f"Falha ao tokenizar os dados com delimitadores e encodings comuns. Verifique a formatação do CSV. Erro de tokenização: {e_comma}")
                         
                 elif uploaded_file.name.endswith('.xlsx'):
                      # Se for XLSX, tentaremos ler como CSV com delimitador comum e encoding 'latin-1' (para ser robusto)
                     uploaded_file.seek(0)
-                    try:
-                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=',')
-                    except UnicodeDecodeError:
-                        uploaded_file.seek(0)
-                        st.warning("Falha na decodificação UTF-8. Tentando 'latin-1' (padrão brasileiro).")
-                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("latin-1")), sep=',')
+                    file_content = uploaded_file.getvalue().decode("latin-1", errors='ignore')
+                    # Tenta CSV com separador de vírgula (mais seguro em geral para Excel exports)
+                    df_import = pd.read_csv(io.StringIO(file_content), sep=',')
+                
+                if df_import is None:
+                    raise Exception("Não foi possível processar o arquivo. Certifique-se de que é um CSV ou XLSX válido.")
+
 
                 st.subheader("Pré-visualização dos Dados Carregados")
                 st.dataframe(df_import.head())
