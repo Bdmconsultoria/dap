@@ -655,45 +655,56 @@ else:
         st.markdown("---")
         
         # -----------------------------
-        # NOVO GRÁFICO 1: Alocação Total Mensal vs 100%
+        # NOVO GRÁFICO 1: Alocação Total Mensal por Projeto (Stacked Bar)
         # -----------------------------
         total_alocado_no_mes = df_filtro['porcentagem'].sum()
         
-        st.subheader(f"Total de Porcentagem Alocada - {mes_selecionado}")
+        st.subheader(f"Total de Alocação Mensal por Projeto - {mes_selecionado}")
         
-        df_total = pd.DataFrame({
-            'Categoria': ['Alocado', 'Restante'],
-            'Porcentagem': [total_alocado_no_mes, max(0, 100 - total_alocado_no_mes)]
-        })
+        # Agrupa por projeto para a barra empilhada
+        df_agrupado_projeto = df_filtro.groupby('projeto')['porcentagem'].sum().reset_index()
+        df_agrupado_projeto.columns = ['Projeto', 'Porcentagem']
+        df_agrupado_projeto['Categoria'] = 'Alocado'
+        
+        # Cria o restante (tempo não alocado) para completar 100%
+        if total_alocado_no_mes < 100:
+            df_restante = pd.DataFrame({
+                'Projeto': ['Não Alocado'],
+                'Porcentagem': [100 - total_alocado_no_mes],
+                'Categoria': ['Restante']
+            })
+            df_final = pd.concat([df_agrupado_projeto, df_restante])
+        elif total_alocado_no_mes == 100:
+            df_final = df_agrupado_projeto
+        else:
+             # Se excedeu 100%, mostra apenas a barra do total alocado (que será maior que 100)
+            df_final = df_agrupado_projeto
 
-        # Define a cor da barra baseada se excedeu ou não 100%
-        cor = 'lightgreen' if total_alocado_no_mes <= 100 else 'red'
-        
-        fig_total = px.bar(
-            df_total.head(1), # Mostra apenas a linha "Alocado"
+
+        fig_stacked = px.bar(
+            df_final,
             x='Porcentagem',
-            y='Categoria',
+            y=['Total Alocado'] * len(df_final), # Usa uma categoria única no eixo Y para empilhar
+            color='Projeto',
             orientation='h',
-            range_x=[0, 100],
             text='Porcentagem',
-            color_discrete_sequence=[cor],
-            title=f"Total: {total_alocado_no_mes}% de 100%"
+            title=f"Total: {total_alocado_no_mes}% de 100%",
+            color_discrete_map={'Não Alocado': 'lightgray'}
         )
 
-        fig_total.update_layout(
-            showlegend=False,
+        fig_stacked.update_traces(texttemplate='%{text}%', textposition='inside')
+
+        fig_stacked.update_layout(
+            barmode='stack',
+            showlegend=True,
             yaxis={'visible': False, 'showticklabels': False},
-            xaxis={'tickvals': [0, 25, 50, 75, 100], 'ticktext': ['0%', '25%', '50%', '75%', '100%'], 'title': ''}
+            xaxis={'range': [0, max(100, total_alocado_no_mes) + 5], 'title': ''}
         )
 
         # Adiciona a linha de 100%
-        fig_total.add_vline(x=100, line_dash="dash", line_color="red", annotation_text="100% (Limite)")
-        
-        # Se excedeu 100%, mostra a barra até o total excedente, mas a linha de 100% continua a referência
-        if total_alocado_no_mes > 100:
-             fig_total.update_layout(xaxis={'range': [0, total_alocado_no_mes + 10]})
+        fig_stacked.add_vline(x=100, line_dash="dash", line_color="red", annotation_text="100% (Limite)", annotation_position="top right")
 
-        st.plotly_chart(fig_total, use_container_width=True)
+        st.plotly_chart(fig_stacked, use_container_width=True)
         # -----------------------------
 
         # Gráfico de pizza por Descrição (Requisito do Usuário)
