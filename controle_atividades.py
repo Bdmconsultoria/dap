@@ -535,8 +535,6 @@ else:
                     file_bytes = uploaded_file.getvalue()
                     
                     # Lista de tentativas de codificação/separador
-                    # Tenta CSV (vírgula) + UTF-8 / Latin-1 e CSV (ponto e vírgula) + UTF-8 / Latin-1
-                    # A ordem importa: Ponto e vírgula é comum no Brasil.
                     encodings_separators = [
                         ('latin-1', ';'), 
                         ('utf-8', ','), 
@@ -546,23 +544,19 @@ else:
                     
                     for encoding, sep in encodings_separators:
                         try:
-                            # Decodifica o arquivo com a codificação atual
                             file_content = file_bytes.decode(encoding, errors='strict')
-                            
-                            # Tenta ler com o delimitador atual
                             df_attempt = pd.read_csv(io.StringIO(file_content), sep=sep, engine='python')
                             
                             # Verifica se o número de colunas parece razoável (ex: 7 colunas esperadas)
+                            # Se for menor que 7, provavelmente a tokenização falhou
                             if df_attempt.shape[1] >= 7:
                                 df_import = df_attempt
-                                st.info(f"✅ Arquivo lido com sucesso usando codificação **{encoding}** e separador **'{sep}'**.")
+                                # st.info(f"✅ Arquivo lido com sucesso usando codificação **{encoding}** e separador **'{sep}'**.")
                                 break
                             else:
-                                # Se o número de colunas for baixo, a leitura falhou (tokenizer error)
                                 raise ValueError(f"Número de colunas inesperado ({df_attempt.shape[1]}).")
                         
                         except Exception as e:
-                            # Ignora erros de decodificação ou tokenização e tenta a próxima combinação
                             continue
                             
                     if df_import is None:
@@ -600,7 +594,6 @@ else:
                     raise KeyError("'Nome' ou 'usuario' não encontrada no arquivo após renomeação. Verifique o cabeçalho.")
 
                 # 3. PRÉ-CADASTRO DE USUÁRIOS
-                # Garante que não haja valores NaN ou vazios sendo usados como nome de usuário
                 usuarios_csv = df_import['usuario'].dropna().astype(str).unique().tolist()
                 
                 if not usuarios_csv:
@@ -608,7 +601,6 @@ else:
                 else:
                     with st.spinner(f"Verificando e pré-cadastrando {len(usuarios_csv)} usuários..."):
                         
-                        # Filtra usuários que já existem no banco para não tentar inserí-los
                         usuarios_existentes_db = usuarios_df['usuario'].tolist()
                         usuarios_para_inserir = [u for u in usuarios_csv if u not in usuarios_existentes_db]
 
@@ -620,7 +612,12 @@ else:
                     
                     # 4. Limpeza e Transformação dos Dados de Atividade
                     
-                    # a) Criar a coluna 'data'
+                    # CORREÇÃO: Forçar as colunas 'mes' e 'ano' a serem numéricas para pd.to_datetime
+                    # Primeiro preenche NaNs com 0 para evitar erros de tipo
+                    df_import['mes'] = df_import['mes'].fillna(0).astype(int)
+                    df_import['ano'] = df_import['ano'].fillna(0).astype(int)
+                    
+                    # a) Criar a coluna 'data' com o dia 1
                     df_import['data'] = pd.to_datetime(df_import[['ano', 'mes']].assign(dia=1))
                     
                     # b) Converter 'porcentagem' (float decimal) para INT (0-100)
