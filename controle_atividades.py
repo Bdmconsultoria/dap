@@ -10,22 +10,19 @@ import base64 # Necessário para codificar o logo
 # ==============================
 # 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
 # ==============================
-# --- CONFIGURAÇÕES DE ESTILO E LOGO (PERSONALIZAR ESTES VALORES) ---
-# Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
-# O logo será deixado sem caminho, pois o carregamento está instável.
-LOGO_PATH = "" 
+# --- CORES SINAPSIS DEFINITIVAS ---
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
 COR_FUNDO_APP = "#FFFFFF"    # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
-# --------------------------------------------------------------------
+# ----------------------------------
 
 # Paleta de cores customizada para Plotly (usada nos gráficos)
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
-# Ajuste da URL do Logo (Vazio, conforme solicitado)
-LOGO_URL = ""
+# O logo foi removido, conforme solicitado, pois o carregamento está instável.
+LOGO_URL = "" 
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -449,7 +446,9 @@ st.markdown(
     <style>
         /* Define a cor primária (usada pelo Streamlit para botões, realces, etc.) */
         :root {{
-            --primary-color: {COR_SECUNDARIA}; /* Usando o Ciano (#19c0d1) para botões de ação do Streamlit */
+            /* primaryColor do config.toml é #19c0d1 */
+            --primary-color: #19c0d1; 
+            /* secondaryBackgroundColor do config.toml é #e0e3ea, mas vamos forçar a cor da Sidebar para a Principal da Sinapsis */
             --secondary-background-color: {COR_FUNDO_SIDEBAR}; 
         }}
         
@@ -471,8 +470,9 @@ st.markdown(
         [data-testid="stSidebar"] .stButton > button:hover {{
              background-color: {COR_SECUNDARIA} !important;
         }}
+        /* Seletor para a opção de rádio selecionada */
         [data-testid="stSidebar"] .st-b5.st-bd.st-be.st-bf.st-bg.st-bh.st-bi.st-bj.st-bk.st-bl.st-bm.st-bn.st-bo.st-bp.st-bq.st-br.st-bs.st-bt.st-bu.st-bv.st-bw.st-bx {{
-             background-color: {COR_SECUNDARIA} !important; /* Opção de rádio selecionada */
+             background-color: {COR_SECUNDARIA} !important; 
         }}
         
         /* Estilo para fixar o logo no topo do sidebar */
@@ -618,8 +618,6 @@ else:
                     st.error("Por favor, selecione um Mês, Descrição e Projeto válidos.")
                     st.stop()
                 
-                # 2. Validação de Observação foi removida. O campo pode ser nulo/vazio.
-                
                 # --- VALIDAÇÃO DE 100% MENSAL ---
                 # 3. Obter a soma das porcentagens já lançadas para o MÊS/ANO e usuário
                 total_existente = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select)
@@ -694,8 +692,6 @@ else:
                     if mes_num_edit is None or descricao_edit == "--- Selecione ---" or projeto_edit == "--- Selecione ---":
                         st.error("Por favor, selecione um Mês, Descrição e Projeto válidos.")
                         st.stop()
-                    
-                    # 2. Validação de Observação foi removida.
                         
                     # --- VALIDAÇÃO DE 100% MENSAL NA EDIÇÃO ---
                     # Exclui a porcentagem da própria atividade_edit
@@ -1108,5 +1104,4 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
 
