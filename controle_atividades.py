@@ -548,15 +548,13 @@ else:
                             df_attempt = pd.read_csv(io.StringIO(file_content), sep=sep, engine='python')
                             
                             # Verifica se o número de colunas parece razoável (ex: 7 colunas esperadas)
-                            # Se for menor que 7, provavelmente a tokenização falhou
                             if df_attempt.shape[1] >= 7:
                                 df_import = df_attempt
-                                # st.info(f"✅ Arquivo lido com sucesso usando codificação **{encoding}** e separador **'{sep}'**.")
                                 break
                             else:
                                 raise ValueError(f"Número de colunas inesperado ({df_attempt.shape[1]}).")
                         
-                        except Exception as e:
+                        except Exception:
                             continue
                             
                     if df_import is None:
@@ -564,6 +562,7 @@ else:
                         
                 elif uploaded_file.name.endswith('.xlsx'):
                      # Se for XLSX, lê com a biblioteca do pandas, que é mais robusta
+                    uploaded_file.seek(0)
                     df_import = pd.read_excel(uploaded_file)
                 
                 if df_import is None:
@@ -614,7 +613,7 @@ else:
                     
                     # 4.1. Conversão Rígida e Limpeza de Dados Sujos/Finais
                     
-                    # Transforma em numérico, forçando erro para NaN, depois remove NaNs para limpar dados sujos
+                    # Transforma em numérico, forçando erro para NaN
                     df_import['mes'] = pd.to_numeric(df_import['mes'], errors='coerce')
                     df_import['ano'] = pd.to_numeric(df_import['ano'], errors='coerce')
                     df_import['porcentagem'] = pd.to_numeric(df_import['porcentagem'], errors='coerce')
@@ -622,11 +621,14 @@ else:
                     # Remove linhas que não têm Mês, Ano ou Porcentagem válidos (inclui sumários e rodapés)
                     df_import.dropna(subset=['mes', 'ano', 'porcentagem'], inplace=True)
                     
-                    # Converte para INT e filtra anos inválidos (como 0)
+                    # **PASSO CRUCIAL:** Redefinir o índice após o dropna para evitar problemas de mapeamento na criação da data
+                    df_import.reset_index(drop=True, inplace=True) 
+
+                    # Converte para INT
                     df_import['mes'] = df_import['mes'].astype(int)
                     df_import['ano'] = df_import['ano'].astype(int)
                     
-                    # Filtra meses e anos que não fazem sentido (ex: Mês 0, Ano 0)
+                    # Filtra meses e anos que não fazem sentido (ex: Mês 0, Ano muito antigo)
                     df_import = df_import[
                         (df_import['mes'] >= 1) & (df_import['mes'] <= 12) & 
                         (df_import['ano'] >= 1900)
@@ -635,7 +637,7 @@ else:
                     
                     # 4.2. Geração da Data e Conversão da Porcentagem
                     
-                    # a) Criar a coluna 'data' com o dia 1
+                    # a) Criar a coluna 'data' com o dia 1 
                     df_import['data'] = pd.to_datetime(df_import[['ano', 'mes']].assign(dia=1))
                     
                     # b) Converter 'porcentagem' (float decimal) para INT (0-100)
@@ -648,7 +650,7 @@ else:
                     colunas_finais = ['usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao']
                     df_para_inserir = df_import[colunas_finais]
 
-                    st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades. ({len(usuarios_csv) - len(df_para_inserir)} linhas inválidas removidas.)")
+                    st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades. ({df_import.shape[0]} linhas válidas mantidas.)")
                     
                     # 5. Botão de Confirmação para Inserção das Atividades
                     if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final"):
@@ -671,4 +673,5 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
 
