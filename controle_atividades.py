@@ -198,6 +198,7 @@ def bulk_insert_usuarios(user_list):
     
     # Preparar a lista de tuplas (usuario, senha padrão, admin=False)
     # Todos os usuários importados terão a senha '123' e não serão administradores por padrão.
+    # A limpeza (strip) deve ser feita antes de chamar esta função.
     data_list = [(user, '123', False) for user in user_list]
 
     query = """
@@ -247,6 +248,64 @@ def bulk_insert_atividades(df_to_insert):
     except Exception as e:
         conn.rollback()
         return 0, f"❌ Erro durante a importação em massa: {e}"
+    finally:
+        conn.close()
+
+def limpar_nomes_usuarios_db():
+    """
+    Executa comandos SQL para remover espaços em branco iniciais/finais
+    nas colunas 'usuario' em ambas as tabelas (usuarios e atividades).
+    """
+    conn = get_db_connection()
+    if conn is None: return False, "Falha na conexão com o banco de dados."
+    
+    try:
+        with conn.cursor() as cursor:
+            
+            # 1. Atualiza a tabela ATIVIDADES para remover espaços na chave estrangeira
+            cursor.execute("""
+                UPDATE atividades
+                SET usuario = TRIM(usuario);
+            """)
+            atividades_afetadas = cursor.rowcount
+            
+            # 2. Re-insere os usuários (agora limpos) na tabela USUARIOS
+            # Esta é a parte complexa: o PostgreSQL não permite UPDATE na chave primária
+            # que resulte em duplicidade. A melhor abordagem é recriar a lista.
+
+            # Passo 2a: Coletar todos os nomes de usuários únicos e limpos da tabela atividades
+            cursor.execute("""
+                SELECT DISTINCT TRIM(usuario) FROM atividades;
+            """)
+            usuarios_limpos = [row[0] for row in cursor.fetchall()]
+            
+            # Passo 2b: Limpar a tabela usuarios dos nomes antigos com espaço
+            # (Vamos apagar e reinserir para garantir que a PK seja limpa)
+            cursor.execute("TRUNCATE TABLE usuarios CASCADE;") # Apaga todos os usuários e referências
+            
+            # Passo 2c: Reinserir todos os usuários limpos com a senha padrão '123'
+            usuarios_para_reinserir = [(user, '123', False) for user in usuarios_limpos]
+            
+            if usuarios_para_reinserir:
+                query_insert_users = """
+                    INSERT INTO usuarios (usuario, senha, admin)
+                    VALUES (%s, %s, %s)
+                """
+                psycopg2.extras.execute_batch(cursor, query_insert_users, usuarios_para_reinserir)
+                usuarios_reinseridos = cursor.rowcount
+            else:
+                usuarios_reinseridos = 0
+
+
+            conn.commit()
+            return True, (
+                f"✅ Sucesso! Limpeza concluída. "
+                f"{atividades_afetadas} atividades e {usuarios_reinseridos} usuários foram corrigidos."
+            )
+            
+    except Exception as e:
+        conn.rollback()
+        return False, f"❌ Erro ao limpar nomes no DB: {e}"
     finally:
         conn.close()
 
@@ -330,7 +389,8 @@ if st.session_state["usuario"] is None:
     if st.button("Entrar"):
         ok, admin = validar_login(usuario, senha)
         if ok:
-            st.session_state["usuario"] = usuario
+            # Garante que o nome de login também é limpo, caso o usuário digite com espaço
+            st.session_state["usuario"] = usuario.strip()
             st.session_state["admin"] = admin
             st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
         else:
@@ -354,15 +414,45 @@ else:
     # ==============================
     if aba == "Gerenciar Usuários" and st.session_state["admin"]:
         st.header("👥 Gerenciar Usuários")
+        
+        # --- Ferramenta de Limpeza de Nomes (Admin) ---
+        st.subheader("Ferramenta de Manutenção (Limpar Espaços)")
+        st.warning(
+            "Esta ação **REMOVE ESPAÇOS em branco iniciais/finais** de TODOS os nomes de usuários no DB, "
+            "corrigindo problemas de login e de chaves estrangeiras. **Todos os usuários terão a senha redefinida para '123'.**"
+        )
+        if st.button("Executar Limpeza de Nomes de Usuário (TRIM)", key="btn_limpeza_db"):
+            with st.spinner("Executando limpeza no banco de dados..."):
+                sucesso, mensagem = limpar_nomes_usuarios_db()
+            
+            # Limpa o cache e recarrega para mostrar a tabela correta
+            carregar_dados.clear()
+            
+            if sucesso:
+                st.success(mensagem)
+            else:
+                st.error(mensagem)
+            
+            # Recarrega o Streamlit para forçar novo login se necessário
+            st.rerun()
+
+
+        # --- Formulário de Adição de Usuário ---
+        st.subheader("Adicionar Novo Usuário")
         with st.form("form_add_user"):
             novo_usuario = st.text_input("Usuário")
             nova_senha = st.text_input("Senha", type="password")
             admin_check = st.checkbox("Admin")
             if st.form_submit_button("Adicionar"):
-                if salvar_usuario(novo_usuario, nova_senha, admin_check):
+                # Aplica o strip na hora de adicionar o usuário
+                if salvar_usuario(novo_usuario.strip(), nova_senha, admin_check):
                     st.success("Usuário adicionado!")
                     st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
-        st.dataframe(usuarios_df, use_container_width=True)
+        
+        # Tabela de Usuários
+        usuarios_df_reloaded, _ = carregar_dados() # Recarrega para mostrar o estado atualizado
+        st.subheader("Tabela de Usuários")
+        st.dataframe(usuarios_df_reloaded, use_container_width=True)
 
     # ==============================
     # Lançar Atividade (Com Validação de 100%)
@@ -584,10 +674,10 @@ else:
                 }
                 
                 # 2.1 Uniformizar nomes de colunas do arquivo para minúsculas e sem espaços
+                # Remove espaços/acentos dos CABEÇALHOS
                 df_import.columns = df_import.columns.str.strip().str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8').str.lower()
                 
                 # 2.2 Cria um dicionário de renomeação case-insensitive
-                # Ex: mapeia 'nome' (minúsculo do arquivo) para 'usuario' (minúsculo de destino)
                 colunas_renomear = {origem.lower(): destino for origem, destino in colunas_mapeamento_origem.items()}
                 
                 # Remove as chaves 'mês' e 'ano' do mapeamento, caso existam, para evitar conflitos
@@ -603,15 +693,21 @@ else:
                         # Tenta deduzir o nome original ou falha
                         raise KeyError(f"A coluna **'{col.capitalize()}'** não foi encontrada no arquivo após a renomeação. Verifique se o nome do cabeçalho está correto.")
 
-                # 3. PRÉ-CADASTRO DE USUÁRIOS (Sem mudanças na lógica)
-                usuarios_csv = df_import['usuario'].dropna().astype(str).unique().tolist()
+                # 3. PRÉ-CADASTRO DE USUÁRIOS
+                
+                # CORREÇÃO CRUCIAL: Limpa a coluna de usuários antes de extrair os nomes únicos
+                df_import['usuario'] = df_import['usuario'].astype(str).str.strip()
+                usuarios_csv = df_import['usuario'].dropna().unique().tolist()
                 
                 if not usuarios_csv:
                     st.error("Nenhum usuário válido encontrado na coluna 'Nome'. Verifique o arquivo.")
                 else:
                     with st.spinner(f"Verificando e pré-cadastrando {len(usuarios_csv)} usuários..."):
                         
-                        usuarios_existentes_db = usuarios_df['usuario'].tolist()
+                        # Precisa recarregar os usuários do DB para garantir que a lista de existentes está atualizada
+                        usuarios_df_reloaded, _ = carregar_dados() 
+                        usuarios_existentes_db = usuarios_df_reloaded['usuario'].tolist()
+                        
                         usuarios_para_inserir = [u for u in usuarios_csv if u not in usuarios_existentes_db]
 
                         if usuarios_para_inserir:
@@ -625,8 +721,6 @@ else:
                     # 4.1. Conversão Rígida e Limpeza de Dados Sujos/Finais
                     
                     # Converte a coluna de data combinada para o tipo datetime. 
-                    # errors='coerce' transforma falhas de conversão em NaT (Not a Time)
-                    # dayfirst=True tenta interpretar o formato DD/MM/AAAA ou MM/AAAA (assumindo o dia 1)
                     df_import['data'] = pd.to_datetime(df_import['data_str'], errors='coerce', dayfirst=True)
                     
                     # Converte a porcentagem para numérico
