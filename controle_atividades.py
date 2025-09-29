@@ -527,15 +527,26 @@ else:
         
         if uploaded_file:
             try:
-                # 1. Leitura do Arquivo
-                # Usando io.StringIO para garantir a leitura correta do CSV carregado
+                # 1. Leitura do Arquivo (Ajuste de ENCODING)
                 if uploaded_file.name.endswith('.csv'):
                     uploaded_file.seek(0)
-                    df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=None, engine='python')
+                    # Tenta ler com 'latin-1' ou 'cp1252' se 'utf-8' falhar, o que resolve o problema de acentuação em CSVs de planilhas.
+                    try:
+                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=None, engine='python')
+                    except UnicodeDecodeError:
+                        uploaded_file.seek(0)
+                        st.warning("Falha na decodificação UTF-8. Tentando 'latin-1' (padrão brasileiro).")
+                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("latin-1")), sep=None, engine='python')
+                        
                 elif uploaded_file.name.endswith('.xlsx'):
-                     # Tenta ler como CSV com delimitador comum se o arquivo for renomeado
+                     # Se for XLSX, tentaremos ler como CSV com delimitador comum e encoding 'latin-1' (para ser robusto)
                     uploaded_file.seek(0)
-                    df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=',')
+                    try:
+                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=',')
+                    except UnicodeDecodeError:
+                        uploaded_file.seek(0)
+                        st.warning("Falha na decodificação UTF-8. Tentando 'latin-1' (padrão brasileiro).")
+                        df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("latin-1")), sep=',')
 
                 st.subheader("Pré-visualização dos Dados Carregados")
                 st.dataframe(df_import.head())
@@ -558,55 +569,59 @@ else:
                     raise KeyError("'Nome' ou 'usuario' não encontrada no arquivo após renomeação.")
 
                 # 3. PRÉ-CADASTRO DE USUÁRIOS
-                usuarios_csv = df_import['usuario'].unique().tolist()
+                # Garante que não haja valores NaN ou vazios sendo usados como nome de usuário
+                usuarios_csv = df_import['usuario'].dropna().astype(str).unique().tolist()
                 
-                with st.spinner(f"Verificando e pré-cadastrando {len(usuarios_csv)} usuários..."):
-                    
-                    # Filtra usuários que já existem no banco para não tentar inserí-los
-                    usuarios_existentes_db = usuarios_df['usuario'].tolist()
-                    usuarios_para_inserir = [u for u in usuarios_csv if u not in usuarios_existentes_db]
+                if not usuarios_csv:
+                    st.error("Nenhum usuário válido encontrado na coluna 'Nome'. Verifique o arquivo.")
+                else:
+                    with st.spinner(f"Verificando e pré-cadastrando {len(usuarios_csv)} usuários..."):
+                        
+                        # Filtra usuários que já existem no banco para não tentar inserí-los
+                        usuarios_existentes_db = usuarios_df['usuario'].tolist()
+                        usuarios_para_inserir = [u for u in usuarios_csv if u not in usuarios_existentes_db]
 
-                    if usuarios_para_inserir:
-                        inserted_count, user_msg = bulk_insert_usuarios(usuarios_para_inserir)
-                        st.info(f"Usuários encontrados no arquivo: **{len(usuarios_csv)}**. Novos usuários cadastrados: **{inserted_count}** (senha padrão: '123').")
-                    else:
-                        st.info(f"Todos os {len(usuarios_csv)} usuários do arquivo já estão cadastrados no sistema.")
-                
-                # 4. Limpeza e Transformação dos Dados de Atividade
-                
-                # a) Criar a coluna 'data'
-                df_import['data'] = pd.to_datetime(df_import[['ano', 'mes']].assign(dia=1))
-                
-                # b) Converter 'porcentagem' (float decimal) para INT (0-100)
-                df_import['porcentagem'] = (df_import['porcentagem'] * 100).round().astype(int)
-                
-                # c) Tratar observações nulas (NaN)
-                df_import['observacao'].fillna('', inplace=True)
+                        if usuarios_para_inserir:
+                            inserted_count, user_msg = bulk_insert_usuarios(usuarios_para_inserir)
+                            st.info(f"Usuários encontrados no arquivo: **{len(usuarios_csv)}**. Novos usuários cadastrados: **{inserted_count}** (senha padrão: '123').")
+                        else:
+                            st.info(f"Todos os {len(usuarios_csv)} usuários do arquivo já estão cadastrados no sistema.")
+                    
+                    # 4. Limpeza e Transformação dos Dados de Atividade
+                    
+                    # a) Criar a coluna 'data'
+                    df_import['data'] = pd.to_datetime(df_import[['ano', 'mes']].assign(dia=1))
+                    
+                    # b) Converter 'porcentagem' (float decimal) para INT (0-100)
+                    df_import['porcentagem'] = (df_import['porcentagem'] * 100).round().astype(int)
+                    
+                    # c) Tratar observações nulas (NaN)
+                    df_import['observacao'].fillna('', inplace=True)
 
-                # d) Garantir que apenas colunas necessárias e transformadas existam
-                colunas_finais = ['usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao']
-                df_para_inserir = df_import[colunas_finais]
+                    # d) Garantir que apenas colunas necessárias e transformadas existam
+                    colunas_finais = ['usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao']
+                    df_para_inserir = df_import[colunas_finais]
 
-                st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades.")
-                
-                # 5. Botão de Confirmação para Inserção das Atividades
-                if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final"):
-                    with st.spinner('Importando dados de atividades em massa...'):
-                        linhas_inseridas, mensagem = bulk_insert_atividades(df_para_inserir)
+                    st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades.")
                     
-                    # Invalida o cache para forçar a recarga dos dados na próxima execução
-                    carregar_dados.clear()
-                    
-                    if linhas_inseridas > 0:
-                        st.success(f"🎉 {linhas_inseridas} registros de atividades importados com sucesso!")
-                    else:
-                        st.error(mensagem)
-                    
-                    # Recarrega o Streamlit
-                    st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
+                    # 5. Botão de Confirmação para Inserção das Atividades
+                    if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final"):
+                        with st.spinner('Importando dados de atividades em massa...'):
+                            linhas_inseridas, mensagem = bulk_insert_atividades(df_para_inserir)
+                        
+                        # Invalida o cache para forçar a recarga dos dados na próxima execução
+                        carregar_dados.clear()
+                        
+                        if linhas_inseridas > 0:
+                            st.success(f"🎉 {linhas_inseridas} registros de atividades importados com sucesso!")
+                        else:
+                            st.error(mensagem)
+                        
+                        # Recarrega o Streamlit
+                        st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
                     
             except KeyError as e:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
+                # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
