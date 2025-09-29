@@ -7,6 +7,21 @@ import plotly.express as px
 import io # Importação necessária para ler arquivos carregados
 
 # ==============================
+# 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
+# ==============================
+# --- CONFIGURAÇÕES DE ESTILO E LOGO (PERSONALIZAR ESTES VALORES) ---
+# Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
+LOGO_URL = "files/Logo Sinapsis 1.jpg" # Caminho para o logo carregado
+COR_PRIMARIA = "#313191" # Azul Principal (Usado para botões, realces, e barras primárias)
+COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos)
+COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
+COR_FUNDO = "#FFFFFF"    # Fundo Branco Limpo
+# --------------------------------------------------------------------
+
+# Paleta de cores customizada para Plotly (usada nos gráficos)
+SINAPSIS_PALETTE = [COR_PRIMARIA, COR_SECUNDARIA, COR_CINZA, "#888888", "#C0C0C0"]
+
+# ==============================
 # 1. Credenciais PostgreSQL
 # ==============================
 # Nota: st.secrets deve estar configurado no seu ambiente Streamlit
@@ -421,6 +436,55 @@ usuarios_df, atividades_df = carregar_dados()
 # ==============================
 # 7. Login e Navegação
 # ==============================
+
+# --- Injeção do Logo e Configuração de Estilo (Atualizado com cores Sinapsis) ---
+st.markdown(
+    f"""
+    <style>
+        /* Define a cor primária (usada pelo Streamlit para botões, realces, etc.) */
+        :root {{
+            --primary-color: {COR_PRIMARIA};
+        }}
+        /* Estilo para fixar o logo no topo do sidebar */
+        .css-1lcbmhc {{ /* Seletor comum para o sidebar */
+            padding-top: 0.5rem;
+        }}
+        .logo-img {{
+            display: block;
+            margin: 0 auto 1.5rem auto;
+            width: 80%; /* Ajuste o tamanho conforme necessário */
+            max-width: 200px;
+            /* Adiciona o fundo branco e sombra para o logo, se necessário */
+            background-color: white; 
+            padding: 5px;
+            border-radius: 8px; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }}
+        /* Força a cor de fundo */
+        .stApp {{
+            background-color: {COR_FUNDO};
+        }}
+        
+        /* Ajuste de cor do texto do menu lateral para combinar com o fundo */
+        .css-vk3ghh {{ /* Título do menu lateral (Usuário:) */
+            color: {COR_CINZA} !important; 
+        }}
+        
+        /* Ajusta o estilo dos gráficos Plotly para serem mais planos */
+        .modebar {{
+            display: none !important;
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.sidebar.markdown(
+    f'<img src="{LOGO_URL}" class="logo-img">',
+    unsafe_allow_html=True
+)
+# --------------------------------------------------------------------
+
 if st.session_state["usuario"] is None:
     st.title("🔐 Login")
     usuario = st.text_input("Usuário")
@@ -689,7 +753,9 @@ else:
             orientation='h',
             text='Porcentagem',
             title=f"Total: {total_alocado_no_mes}% de 100%",
-            color_discrete_map={'Não Alocado': 'lightgray'}
+            # *** USO DA PALETA SINAPSIS ***
+            color_discrete_sequence=SINAPSIS_PALETTE,
+            color_discrete_map={'Não Alocado': '#D3D3D3'} # Cinza Claro
         )
 
         fig_stacked.update_traces(texttemplate='%{text}%', textposition='inside')
@@ -716,6 +782,8 @@ else:
             values='porcentagem', 
             title='Distribuição da Porcentagem Lançada no Mês',
             hole=.3,
+            # *** USO DA PALETA SINAPSIS ***
+            color_discrete_sequence=SINAPSIS_PALETTE 
         )
         st.plotly_chart(fig_descricao, use_container_width=True)
         
@@ -791,8 +859,9 @@ else:
                     x='Mês/Ano', 
                     y='Total Alocado (%)', 
                     title=f"Total de Porcentagem Alocada por Mês",
+                    # *** USO DA PALETA SINAPSIS ***
                     color='Total Alocado (%)',
-                    color_continuous_scale=px.colors.sequential.Plotly3,
+                    color_continuous_scale=px.colors.sequential.Bluyl, # Mantido um scale sequential para valores
                     height=400
                 )
                 fig_mensal.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Ideal", annotation_position="top left")
