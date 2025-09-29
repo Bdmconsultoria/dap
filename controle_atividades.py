@@ -532,34 +532,45 @@ else:
                 
                 if uploaded_file.name.endswith('.csv'):
                     uploaded_file.seek(0)
-                    file_content = uploaded_file.getvalue().decode("utf-8", errors='ignore')
-
-                    # Tenta detecção automática de delimitador (sep=None) + UTF-8
-                    try:
-                        df_import = pd.read_csv(io.StringIO(file_content), sep=None, engine='python')
-                    except Exception:
-                        # Tenta Delimitador Ponto e Vírgula (padrão brasileiro) + Latin-1
+                    file_bytes = uploaded_file.getvalue()
+                    
+                    # Lista de tentativas de codificação/separador
+                    # Tenta CSV (vírgula) + UTF-8 / Latin-1 e CSV (ponto e vírgula) + UTF-8 / Latin-1
+                    # A ordem importa: Ponto e vírgula é comum no Brasil.
+                    encodings_separators = [
+                        ('latin-1', ';'), 
+                        ('utf-8', ','), 
+                        ('latin-1', ','),
+                        ('utf-8', ';')
+                    ]
+                    
+                    for encoding, sep in encodings_separators:
                         try:
-                            uploaded_file.seek(0)
-                            file_content_latin1 = uploaded_file.getvalue().decode("latin-1")
-                            st.info("Tentando leitura com delimitador ';'(ponto e vírgula) e codificação 'latin-1'.")
-                            df_import = pd.read_csv(io.StringIO(file_content_latin1), sep=';', encoding='latin-1', engine='python')
-                        except Exception as e_latin1:
-                             # Se falhar, tenta Delimitador Vírgula (padrão americano) + Latin-1
-                            try:
-                                uploaded_file.seek(0)
-                                file_content_latin1 = uploaded_file.getvalue().decode("latin-1")
-                                st.info("Tentando leitura com delimitador ','(vírgula) e codificação 'latin-1'.")
-                                df_import = pd.read_csv(io.StringIO(file_content_latin1), sep=',', encoding='latin-1', engine='python')
-                            except Exception as e_comma:
-                                raise Exception(f"Falha ao tokenizar os dados com delimitadores e encodings comuns. Verifique a formatação do CSV. Erro de tokenização: {e_comma}")
+                            # Decodifica o arquivo com a codificação atual
+                            file_content = file_bytes.decode(encoding, errors='strict')
+                            
+                            # Tenta ler com o delimitador atual
+                            df_attempt = pd.read_csv(io.StringIO(file_content), sep=sep, engine='python')
+                            
+                            # Verifica se o número de colunas parece razoável (ex: 7 colunas esperadas)
+                            if df_attempt.shape[1] >= 7:
+                                df_import = df_attempt
+                                st.info(f"✅ Arquivo lido com sucesso usando codificação **{encoding}** e separador **'{sep}'**.")
+                                break
+                            else:
+                                # Se o número de colunas for baixo, a leitura falhou (tokenizer error)
+                                raise ValueError(f"Número de colunas inesperado ({df_attempt.shape[1]}).")
+                        
+                        except Exception as e:
+                            # Ignora erros de decodificação ou tokenização e tenta a próxima combinação
+                            continue
+                            
+                    if df_import is None:
+                         raise Exception("Falha ao tokenizar os dados após múltiplas tentativas de delimitador e encoding. Verifique a formatação do CSV.")
                         
                 elif uploaded_file.name.endswith('.xlsx'):
-                     # Se for XLSX, tentaremos ler como CSV com delimitador comum e encoding 'latin-1' (para ser robusto)
-                    uploaded_file.seek(0)
-                    file_content = uploaded_file.getvalue().decode("latin-1", errors='ignore')
-                    # Tenta CSV com separador de vírgula (mais seguro em geral para Excel exports)
-                    df_import = pd.read_csv(io.StringIO(file_content), sep=',')
+                     # Se for XLSX, lê com a biblioteca do pandas, que é mais robusta
+                    df_import = pd.read_excel(uploaded_file)
                 
                 if df_import is None:
                     raise Exception("Não foi possível processar o arquivo. Certifique-se de que é um CSV ou XLSX válido.")
@@ -579,11 +590,14 @@ else:
                     'Observação (Opcional)': 'observacao'
                 }
                 
+                # Tratar nomes de colunas para garantir que o mapeamento funcione mesmo com espaços em branco extras
+                df_import.columns = df_import.columns.str.strip()
+                
                 df_import.rename(columns=colunas_mapeamento, inplace=True)
                 
                 # Garantir que a coluna 'usuario' exista após a renomeação
                 if 'usuario' not in df_import.columns:
-                    raise KeyError("'Nome' ou 'usuario' não encontrada no arquivo após renomeação.")
+                    raise KeyError("'Nome' ou 'usuario' não encontrada no arquivo após renomeação. Verifique o cabeçalho.")
 
                 # 3. PRÉ-CADASTRO DE USUÁRIOS
                 # Garante que não haja valores NaN ou vazios sendo usados como nome de usuário
