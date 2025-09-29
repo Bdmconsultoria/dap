@@ -458,7 +458,7 @@ else:
     # Lançar Atividade (Com Validação de 100%)
     # ==============================
     elif aba == "Lançar Atividade":
-        st.header("📝 Lançar Atividade")
+        st.header("📝 DAP SiNAPSIS")
         with st.form("form_atividade"):
             data = st.date_input("Data", datetime.today())
             descricao = st.selectbox("Descrição", DESCRICOES)
@@ -774,3 +774,4 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
