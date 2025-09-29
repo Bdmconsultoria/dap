@@ -166,6 +166,7 @@ def apagar_atividade(atividade_id):
     finally:
         conn.close()
 
+@st.cache_data(ttl=600)
 def carregar_dados():
     """Carrega todos os usuários e atividades do banco de dados para DataFrames."""
     conn = get_db_connection()
@@ -178,7 +179,7 @@ def carregar_dados():
             FROM atividades ORDER BY data DESC;
         """, conn)
         
-        # CORREÇÃO: Converter a coluna 'data' para datetime para permitir o uso do acessor .dt no Pandas
+        # Converter a coluna 'data' para datetime para permitir o uso do acessor .dt no Pandas
         if not atividades_df.empty:
             atividades_df['data'] = pd.to_datetime(atividades_df['data'])
             
@@ -316,6 +317,7 @@ if "usuario" not in st.session_state:
     st.session_state["admin"] = False
 
 # Carrega os dados sempre que o estado de sessão muda ou a página recarrega
+# Isso é essencial para que o Streamlit funcione de forma reativa.
 usuarios_df, atividades_df = carregar_dados()
 
 # ==============================
@@ -330,7 +332,7 @@ if st.session_state["usuario"] is None:
         if ok:
             st.session_state["usuario"] = usuario
             st.session_state["admin"] = admin
-            st.experimental_rerun()
+            st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
         else:
             st.error("Usuário ou senha incorretos")
 else:
@@ -338,7 +340,7 @@ else:
     if st.sidebar.button("Sair"):
         st.session_state["usuario"] = None
         st.session_state["admin"] = False
-        st.experimental_rerun()
+        st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
 
     abas = ["Lançar Atividade", "Minhas Atividades"]
     if st.session_state["admin"]:
@@ -359,7 +361,7 @@ else:
             if st.form_submit_button("Adicionar"):
                 if salvar_usuario(novo_usuario, nova_senha, admin_check):
                     st.success("Usuário adicionado!")
-                    st.experimental_rerun()
+                    st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
         st.dataframe(usuarios_df, use_container_width=True)
 
     # ==============================
@@ -393,13 +395,17 @@ else:
                     else:
                         # 3. Salvar se a validação passar
                         if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
+                            # Invalida o cache para forçar a recarga dos dados na próxima execução
+                            carregar_dados.clear()
+                            
                             # Se for 100%, mostra uma mensagem especial.
                             if novo_total == 100:
                                 st.balloons()
                                 st.success("🎉 Atividade salva! Você completou a alocação de 100% para este dia.")
                             else:
                                 st.success(f"Atividade salva! Total alocado no dia: {novo_total}%.")
-                            st.experimental_rerun()
+                            
+                            st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
                             
                 else:
                     st.error("A observação é obrigatória.")
@@ -432,8 +438,10 @@ else:
                 with col2:
                     if col2.button("🗑️ Apagar", key=f"del_{row['id']}"):
                         if apagar_atividade(row['id']):
+                            # Invalida o cache para forçar a recarga dos dados na próxima execução
+                            carregar_dados.clear()
                             st.success("Atividade apagada!")
-                            st.experimental_rerun()
+                            st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
                 st.markdown("---")
 
             # Gráfico de pizza
@@ -520,11 +528,14 @@ else:
         if uploaded_file:
             try:
                 # 1. Leitura do Arquivo
+                # Usando io.StringIO para garantir a leitura correta do CSV carregado
                 if uploaded_file.name.endswith('.csv'):
-                    df_import = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8')
+                    uploaded_file.seek(0)
+                    df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=None, engine='python')
                 elif uploaded_file.name.endswith('.xlsx'):
-                    # Tenta ler como CSV com delimitador comum se o arquivo for renomeado
-                     df_import = pd.read_csv(uploaded_file, sep=',', encoding='utf-8')
+                     # Tenta ler como CSV com delimitador comum se o arquivo for renomeado
+                    uploaded_file.seek(0)
+                    df_import = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), sep=',')
 
                 st.subheader("Pré-visualização dos Dados Carregados")
                 st.dataframe(df_import.head())
@@ -583,15 +594,19 @@ else:
                     with st.spinner('Importando dados de atividades em massa...'):
                         linhas_inseridas, mensagem = bulk_insert_atividades(df_para_inserir)
                     
+                    # Invalida o cache para forçar a recarga dos dados na próxima execução
+                    carregar_dados.clear()
+                    
                     if linhas_inseridas > 0:
                         st.success(f"🎉 {linhas_inseridas} registros de atividades importados com sucesso!")
                     else:
                         st.error(mensagem)
                     
-                    # Recarrega os dados globais e o Streamlit
-                    st.experimental_rerun()
+                    # Recarrega o Streamlit
+                    st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
                     
             except KeyError as e:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
