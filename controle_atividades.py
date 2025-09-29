@@ -109,44 +109,66 @@ def validar_login(usuario, senha):
     finally:
         conn.close()
 
-def calcular_porcentagem_existente(usuario, data):
-    """Calcula a soma das porcentagens de atividades já registradas para o usuário na data."""
+def calcular_porcentagem_existente(usuario, data, excluido_id=None):
+    """
+    Calcula a soma das porcentagens de atividades já registradas para o usuário na data,
+    excluindo opcionalmente uma atividade (usado na edição).
+    """
     conn = get_db_connection()
     if conn is None:
-        # Se falhar, retorna um valor alto para impedir o lançamento e forçar o erro no UI.
         return 101 
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""
+            query = """
                 SELECT COALESCE(SUM(porcentagem), 0)
                 FROM atividades
-                WHERE usuario = %s AND data = %s;
-            """, (usuario, data))
+                WHERE usuario = %s AND data = %s
+            """
+            params = [usuario, data]
+            
+            if excluido_id is not None:
+                query += " AND id != %s"
+                params.append(excluido_id)
+            
+            cursor.execute(query + ";", params)
             result = cursor.fetchone()
-            # COALESCE garante que se não houver atividades, o resultado será 0.
             return result[0] if result else 0 
     except Exception as e:
         st.error(f"Erro ao calcular porcentagem existente: {e}")
-        return 101 # Retorna 101 em caso de erro no DB para impedir lançamento
+        return 101 
     finally:
         if conn:
             conn.close()
 
-def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao):
-    """Salva uma nova atividade no banco de dados."""
+def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao, atividade_id=None):
+    """Salva uma nova atividade ou atualiza uma existente (se atividade_id for fornecido)."""
     conn = get_db_connection()
     if conn is None: return False
     try:
         with conn.cursor() as cursor:
             mes, ano = data.month, data.year
-            cursor.execute("""
-                INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-            """, (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao))
+            
+            if atividade_id is None:
+                # Inserir Nova Atividade
+                query = """
+                    INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                """
+                params = (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
+            else:
+                # Atualizar Atividade Existente
+                query = """
+                    UPDATE atividades
+                    SET data = %s, mes = %s, ano = %s, descricao = %s, projeto = %s, porcentagem = %s, observacao = %s
+                    WHERE id = %s;
+                """
+                params = (data, mes, ano, descricao, projeto, porcentagem, observacao, atividade_id)
+            
+            cursor.execute(query, params)
             conn.commit()
             return True
     except Exception as e:
-        st.error(f"Erro ao salvar atividade: {e}")
+        st.error(f"Erro ao salvar/editar atividade: {e}")
         return False
     finally:
         conn.close()
@@ -368,12 +390,19 @@ PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Adm
             "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
             "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
 
+# Adiciona a opção vazia no início das listas para uso no selectbox
+DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
+PROJETOS_SELECT = ["--- Selecione ---"] + PROJETOS
+
 # ==============================
 # 6. Sessão
 # ==============================
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
     st.session_state["admin"] = False
+# Adiciona o estado para controlar a edição
+if 'edit_id' not in st.session_state:
+    st.session_state['edit_id'] = None
 
 # Carrega os dados sempre que o estado de sessão muda ou a página recarrega
 # Isso é essencial para que o Streamlit funcione de forma reativa.
@@ -458,93 +487,183 @@ else:
     # Lançar Atividade (Com Validação de 100%)
     # ==============================
     elif aba == "Lançar Atividade":
-        st.header("📝 DAP SiNAPSIS")
+        st.header("📝 Lançar Atividade")
         with st.form("form_atividade"):
+            # Usando DESCRICOES_SELECT e PROJETOS_SELECT para começar com "--- Selecione ---"
             data = st.date_input("Data", datetime.today())
-            descricao = st.selectbox("Descrição", DESCRICOES)
-            projeto = st.selectbox("Projeto", PROJETOS)
+            descricao = st.selectbox("Descrição", DESCRICOES_SELECT)
+            projeto = st.selectbox("Projeto", PROJETOS_SELECT)
             # A porcentagem mínima deve ser 1 para evitar lançamentos vazios
             porcentagem = st.slider("Porcentagem", 1, 100, 100) 
             observacao = st.text_area("Observação")
             
             if st.form_submit_button("Salvar"):
-                if observacao.strip():
-                    
-                    # --- VALIDAÇÃO DE 100% DIÁRIO ---
-                    # 1. Obter a soma das porcentagens já lançadas para o dia e usuário
-                    total_existente = calcular_porcentagem_existente(st.session_state["usuario"], data)
-                    novo_total = total_existente + porcentagem
-
-                    # 2. Verificar se o novo total excede 100%
-                    if novo_total > 100:
-                        st.error(
-                            f"⚠️ **Alocação Excedida!** O total de porcentagem lançado para **{data.strftime('%d/%m/%Y')}** "
-                            f"é de **{total_existente}%**. A nova atividade de **{porcentagem}%** faria o total ser **{novo_total}%**, "
-                            f"que excede o limite de 100%."
-                        )
-                    else:
-                        # 3. Salvar se a validação passar
-                        if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
-                            # Invalida o cache para forçar a recarga dos dados na próxima execução
-                            carregar_dados.clear()
-                            
-                            # Se for 100%, mostra uma mensagem especial.
-                            if novo_total == 100:
-                                st.balloons()
-                                st.success("🎉 Atividade salva! Você completou a alocação de 100% para este dia.")
-                            else:
-                                st.success(f"Atividade salva! Total alocado no dia: {novo_total}%.")
-                            
-                            st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
-                            
-                else:
+                
+                # 1. Validação de Seleção Vazias
+                if descricao == "--- Selecione ---" or projeto == "--- Selecione ---":
+                    st.error("Por favor, selecione uma Descrição e um Projeto válidos.")
+                    st.stop()
+                
+                # 2. Validação de Observação
+                if not observacao.strip():
                     st.error("A observação é obrigatória.")
+                    st.stop()
+                    
+                # --- VALIDAÇÃO DE 100% DIÁRIO ---
+                # 3. Obter a soma das porcentagens já lançadas para o dia e usuário
+                total_existente = calcular_porcentagem_existente(st.session_state["usuario"], data)
+                novo_total = total_existente + porcentagem
+
+                # 4. Verificar se o novo total excede 100%
+                if novo_total > 100:
+                    st.error(
+                        f"⚠️ **Alocação Excedida!** O total de porcentagem lançado para **{data.strftime('%d/%m/%Y')}** "
+                        f"é de **{total_existente}%**. A nova atividade de **{porcentagem}%** faria o total ser **{novo_total}%**, "
+                        f"que excede o limite de 100%."
+                    )
+                else:
+                    # 5. Salvar se a validação passar
+                    if salvar_atividade(st.session_state["usuario"], data, descricao, projeto, porcentagem, observacao):
+                        # Invalida o cache para forçar a recarga dos dados na próxima execução
+                        carregar_dados.clear()
+                        
+                        # Se for 100%, mostra uma mensagem especial.
+                        if novo_total == 100:
+                            st.balloons()
+                            st.success("🎉 Atividade salva! Você completou a alocação de 100% para este dia.")
+                        else:
+                            st.success(f"Atividade salva! Total alocado no dia: {novo_total}%.")
+                        
+                        st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
+                            
 
     # ==============================
-    # Minhas Atividades
+    # Minhas Atividades (com Edição)
     # ==============================
     elif aba == "Minhas Atividades":
         st.header("📊 Minhas Atividades")
         minhas = atividades_df[atividades_df["usuario"] == st.session_state["usuario"]]
+        
+        if st.session_state['edit_id']:
+            # --- MODAL DE EDIÇÃO ---
+            st.subheader("✍️ Editar Atividade")
+            
+            # Pega os dados da atividade sendo editada
+            atividade_edit = minhas[minhas['id'] == st.session_state['edit_id']].iloc[0]
+            
+            with st.form("form_edicao"):
+                data_edit = st.date_input("Data", atividade_edit['data'].date())
+                
+                # Encontra o índice da Descrição e Projeto para pré-selecionar no selectbox
+                default_desc_idx = DESCRICOES_SELECT.index(atividade_edit['descricao'])
+                default_proj_idx = PROJETOS_SELECT.index(atividade_edit['projeto'])
+                
+                descricao_edit = st.selectbox("Descrição", DESCRICOES_SELECT, index=default_desc_idx)
+                projeto_edit = st.selectbox("Projeto", PROJETOS_SELECT, index=default_proj_idx)
+                porcentagem_edit = st.slider("Porcentagem", 1, 100, atividade_edit['porcentagem']) 
+                observacao_edit = st.text_area("Observação", atividade_edit['observacao'])
+                
+                col_save, col_cancel = st.columns(2)
+                
+                if col_save.form_submit_button("Salvar Edição"):
+                    
+                    # 1. Validação de Seleção Vazias
+                    if descricao_edit == "--- Selecione ---" or projeto_edit == "--- Selecione ---":
+                        st.error("Por favor, selecione uma Descrição e um Projeto válidos.")
+                        st.stop()
+                    
+                    # 2. Validação de Observação
+                    if not observacao_edit.strip():
+                        st.error("A observação é obrigatória.")
+                        st.stop()
+                        
+                    # --- VALIDAÇÃO DE 100% DIÁRIO NA EDIÇÃO ---
+                    # Exclui a porcentagem da própria atividade_edit
+                    total_existente = calcular_porcentagem_existente(
+                        st.session_state["usuario"], 
+                        data_edit, 
+                        excluido_id=st.session_state['edit_id']
+                    )
+                    novo_total = total_existente + porcentagem_edit
+
+                    if novo_total > 100:
+                        st.error(
+                            f"⚠️ **Alocação Excedida!** A edição faria o total ser **{novo_total}%**, "
+                            f"que excede o limite de 100% para o dia {data_edit.strftime('%d/%m/%Y')}."
+                        )
+                    else:
+                        # 3. Salvar Edição
+                        if salvar_atividade(
+                            st.session_state["usuario"], 
+                            data_edit, 
+                            descricao_edit, 
+                            projeto_edit, 
+                            porcentagem_edit, 
+                            observacao_edit, 
+                            atividade_id=st.session_state['edit_id']
+                        ):
+                            carregar_dados.clear()
+                            st.session_state['edit_id'] = None # Sai do modo de edição
+                            st.success("Atividade editada com sucesso!")
+                            st.rerun()
+                
+                if col_cancel.form_submit_button("Cancelar"):
+                    st.session_state['edit_id'] = None
+                    st.rerun()
+
+            st.markdown("---") # Fim do Modal de Edição
+
         if minhas.empty:
             st.info("Nenhuma atividade encontrada.")
-        else:
-            # Filtro por Mês
-            # 'data' agora é um tipo datetime, então o .dt funciona
-            minhas['data_mes'] = minhas['data'].dt.strftime('%Y-%m')
-            meses_disponiveis = minhas['data_mes'].unique()
-            mes_selecionado = st.selectbox("Filtrar por mês/ano", sorted(meses_disponiveis, reverse=True))
-            df_filtro = minhas[minhas['data_mes'] == mes_selecionado].sort_values(by='data', ascending=False)
+            st.stop() # Para a execução aqui se não houver dados
+        
+        # --- FILTROS E GRÁFICOS ---
+        # Filtro por Mês
+        minhas['data_mes'] = minhas['data'].dt.strftime('%Y-%m')
+        meses_disponiveis = minhas['data_mes'].unique()
+        mes_selecionado = st.selectbox("Filtrar por mês/ano", sorted(meses_disponiveis, reverse=True))
+        df_filtro = minhas[minhas['data_mes'] == mes_selecionado].sort_values(by='data', ascending=False)
+        
+        st.markdown("---")
+
+        # Gráfico de pizza por Descrição (Requisito do Usuário)
+        st.subheader(f"Distribuição de Tempo por Descrição - {mes_selecionado}")
+        df_agrupado_descricao = df_filtro.groupby('descricao')['porcentagem'].sum().reset_index()
+        fig_descricao = px.pie(
+            df_agrupado_descricao, 
+            names='descricao', 
+            values='porcentagem', 
+            title='Alocação por Descrição de Atividade no Mês',
+            hole=.3,
+        )
+        st.plotly_chart(fig_descricao, use_container_width=True)
+        
+        st.subheader("Lançamentos Detalhados")
+
+        # Lista de Atividades com botões de Ações
+        for idx, row in df_filtro.iterrows():
+            # Usa 3 colunas: Info, Editar e Apagar
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.markdown(f"**ID {row['id']}** | 📅 **{row['data'].strftime('%d/%m/%Y')}** | **{row['descricao']}** ({row['porcentagem']}%)")
+                st.markdown(f"**Projeto:** *{row['projeto']}*")
+                st.markdown(f"**Obs:** {row['observacao']}")
             
+            with col2:
+                # Botão Editar
+                if col2.button("✍️ Editar", key=f"edit_{row['id']}"):
+                    st.session_state['edit_id'] = row['id']
+                    st.rerun()
+            
+            with col3:
+                # Botão Apagar
+                if col3.button("🗑️ Apagar", key=f"del_{row['id']}"):
+                    if apagar_atividade(row['id']):
+                        carregar_dados.clear()
+                        st.success("Atividade apagada!")
+                        st.rerun()
             st.markdown("---")
 
-            # Lista de Atividades
-            for idx, row in df_filtro.iterrows():
-                col1, col2 = st.columns([4, 1])
-                with col1:
-                    st.markdown(f"📅 **{row['data'].strftime('%d/%m/%Y')}** - **{row['descricao']}** ({row['porcentagem']}%)")
-                    st.markdown(f"**Projeto:** *{row['projeto']}*")
-                    st.markdown(f"**Obs:** {row['observacao']}")
-                with col2:
-                    if col2.button("🗑️ Apagar", key=f"del_{row['id']}"):
-                        if apagar_atividade(row['id']):
-                            # Invalida o cache para forçar a recarga dos dados na próxima execução
-                            carregar_dados.clear()
-                            st.success("Atividade apagada!")
-                            st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
-                st.markdown("---")
-
-            # Gráfico de pizza
-            st.subheader(f"Distribuição de Projetos - {mes_selecionado}")
-            df_agrupado_projeto = df_filtro.groupby('projeto')['porcentagem'].sum().reset_index()
-            fig_projeto = px.pie(
-                df_agrupado_projeto, 
-                names='projeto', 
-                values='porcentagem', 
-                title='Alocação por Projeto no Mês',
-                hole=.3,
-            )
-            st.plotly_chart(fig_projeto, use_container_width=True)
 
     # ==============================
     # Consolidado para Admin
@@ -774,4 +893,3 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
