@@ -671,3 +671,4 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
