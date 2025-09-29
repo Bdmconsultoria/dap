@@ -5,7 +5,7 @@ import psycopg2
 import plotly.express as px
 
 # ==============================
-# 1. Lendo credenciais do st.secrets
+# 1. Credenciais PostgreSQL
 # ==============================
 DB_PARAMS = {
     "host": st.secrets["postgresql"]["host"],
@@ -33,7 +33,6 @@ def get_db_connection():
 def setup_db():
     conn = get_db_connection()
     if conn is None: return
-
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
@@ -119,16 +118,16 @@ def salvar_atividade(usuario, data, descricao, projeto, porcentagem, observacao)
     finally:
         conn.close()
 
-def deletar_atividade(id):
+def apagar_atividade(atividade_id):
     conn = get_db_connection()
     if conn is None: return False
     try:
         with conn.cursor() as cursor:
-            cursor.execute("DELETE FROM atividades WHERE id=%s;", (id,))
+            cursor.execute("DELETE FROM atividades WHERE id = %s;", (atividade_id,))
             conn.commit()
             return True
     except Exception as e:
-        st.error(f"Erro ao deletar atividade: {e}")
+        st.error(f"Erro ao apagar atividade: {e}")
         return False
     finally:
         conn.close()
@@ -151,17 +150,75 @@ def carregar_dados():
         conn.close()
 
 # ==============================
-# 5. Interface Streamlit
+# 5. Dados fixos
 # ==============================
-# [Inclua aqui todos os DESCRICOES e PROJETOS como antes]
-# Para manter o código enxuto aqui, estou assumindo que DESCRICOES e PROJETOS já estão definidos.
+DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento",
+              "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira",
+              "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados",
+              "2.012 - Logística de viagens","2.013 - Prestação de contas","3.001 - Prospecção de oportunidades",
+              "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital",
+              "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto",
+              "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta",
+              "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial",
+              "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto",
+              "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho",
+              "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas",
+              "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos",
+              "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados",
+              "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento",
+              "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho",
+              "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados",
+              "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug",
+              "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades",
+              "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação",
+              "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa",
+              "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes",
+              "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material",
+              "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho",
+              "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo",
+              "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH",
+              "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento",
+              "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna",
+              "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação",
+              "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho",
+              "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações",
+              "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos",
+              "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados",
+              "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
 
+PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia",
+            "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
+            "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura",
+            "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente",
+            "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas",
+            "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0",
+            "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)",
+            "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid",
+            "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta",
+            "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid",
+            "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas",
+            "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde",
+            "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics",
+            "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação",
+            "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD",
+            "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT",
+            "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas",
+            "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck",
+            "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
+            "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
+
+# ==============================
+# 6. Sessão
+# ==============================
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
     st.session_state["admin"] = False
 
 usuarios_df, atividades_df = carregar_dados()
 
+# ==============================
+# 7. Login
+# ==============================
 if st.session_state["usuario"] is None:
     st.title("🔐 Login")
     usuario = st.text_input("Usuário")
@@ -181,12 +238,15 @@ else:
         st.session_state["admin"] = False
         st.experimental_rerun()
 
-    abas = ["Lançar Atividade", "Minhas Atividades", "Validação"]
+    abas = ["Lançar Atividade", "Minhas Atividades"]
     if st.session_state["admin"]:
         abas += ["Gerenciar Usuários", "Consolidado"]
 
     aba = st.sidebar.radio("Menu", abas)
 
+    # ==============================
+    # Gerenciar Usuários
+    # ==============================
     if aba == "Gerenciar Usuários" and st.session_state["admin"]:
         st.header("👥 Gerenciar Usuários")
         with st.form("form_add_user"):
@@ -199,6 +259,9 @@ else:
                     st.experimental_rerun()
         st.dataframe(usuarios_df, use_container_width=True)
 
+    # ==============================
+    # Lançar Atividade
+    # ==============================
     elif aba == "Lançar Atividade":
         st.header("📝 Lançar Atividade")
         with st.form("form_atividade"):
@@ -215,40 +278,40 @@ else:
                 else:
                     st.error("A observação é obrigatória.")
 
+    # ==============================
+    # Minhas Atividades
+    # ==============================
     elif aba == "Minhas Atividades":
         st.header("📊 Minhas Atividades")
         minhas = atividades_df[atividades_df["usuario"] == st.session_state["usuario"]]
         if minhas.empty:
             st.info("Nenhuma atividade encontrada.")
         else:
+            # Botão para apagar atividade
             for idx, row in minhas.iterrows():
-                st.markdown(f"**Data:** {row['data'].strftime('%Y-%m-%d')}, **Projeto:** {row['projeto']}, **Descrição:** {row['descricao']}, **%:** {row['porcentagem']}")
+                st.write(f"**{row['data'].strftime('%Y-%m')} - {row['descricao']}** ({row['porcentagem']}%)")
+                st.write(f"Projeto: {row['projeto']}")
                 st.write(f"Observação: {row['observacao']}")
-                if st.button(f"Apagar {row['id']}", key=row['id']):
-                    if deletar_atividade(row['id']):
-                        st.success("Atividade deletada!")
+                if st.button(f"Apagar ID {row['id']}", key=f"del_{row['id']}"):
+                    if apagar_atividade(row['id']):
+                        st.success("Atividade apagada!")
                         st.experimental_rerun()
+            # Gráfico de pizza
+            meses = minhas['mes'].unique()
+            mes_selecionado = st.selectbox("Filtrar por mês", sorted(meses))
+            df_filtro = minhas[minhas['mes'] == mes_selecionado]
+            if not df_filtro.empty:
+                fig = px.pie(df_filtro, names='descricao', values='porcentagem', title=f"Distribuição de Atividades - Mês {mes_selecionado}")
+                st.plotly_chart(fig, use_container_width=True)
 
-    elif aba == "Validação":
-        st.header("📈 Validação por Mês")
-        df_val = atividades_df.copy()
-        if not st.session_state["admin"]:
-            df_val = df_val[df_val["usuario"] == st.session_state["usuario"]]
-        # Selecionar mês e ano
-        anos = df_val["ano"].unique()
-        anos.sort()
-        ano_selec = st.selectbox("Ano", anos)
-        meses = df_val[df_val["ano"] == ano_selec]["mes"].unique()
-        meses.sort()
-        mes_selec = st.selectbox("Mês", meses)
-        df_val = df_val[(df_val["ano"]==ano_selec) & (df_val["mes"]==mes_selec)]
-        if df_val.empty:
-            st.info("Nenhuma atividade encontrada para este mês.")
-        else:
-            df_graf = df_val.groupby("descricao")["porcentagem"].sum().reset_index()
-            fig = px.pie(df_graf, names="descricao", values="porcentagem", title=f"Distribuição de atividades - {mes_selec}/{ano_selec}")
-            st.plotly_chart(fig, use_container_width=True)
-
+    # ==============================
+    # Consolidado para Admin
+    # ==============================
     elif aba == "Consolidado" and st.session_state["admin"]:
         st.header("📑 Consolidado")
-        st.dataframe(atividades_df, use_container_width=True)
+        if not atividades_df.empty:
+            fig = px.pie(atividades_df, names='descricao', values='porcentagem', title="Distribuição de Atividades - Todos")
+            st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(atividades_df, use_container_width=True)
+
+
