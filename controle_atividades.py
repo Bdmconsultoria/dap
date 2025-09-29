@@ -175,6 +175,11 @@ def carregar_dados():
             SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao 
             FROM atividades ORDER BY data DESC;
         """, conn)
+        
+        # CORREÇÃO: Converter a coluna 'data' para datetime para permitir o uso do acessor .dt no Pandas
+        if not atividades_df.empty:
+            atividades_df['data'] = pd.to_datetime(atividades_df['data'])
+            
         return usuarios_df, atividades_df
     except Exception as e:
         st.error(f"Erro ao carregar dados: {e}")
@@ -344,6 +349,7 @@ else:
             st.info("Nenhuma atividade encontrada.")
         else:
             # Filtro por Mês
+            # 'data' agora é um tipo datetime, então o .dt funciona
             minhas['data_mes'] = minhas['data'].dt.strftime('%Y-%m')
             meses_disponiveis = minhas['data_mes'].unique()
             mes_selecionado = st.selectbox("Filtrar por mês/ano", sorted(meses_disponiveis, reverse=True))
@@ -392,6 +398,7 @@ else:
             usuarios_unicos = sorted(atividades_df['usuario'].unique())
             usuario_selecionado = col_admin1.selectbox("Filtrar por Usuário", ["Todos"] + usuarios_unicos)
             
+            # 'data' agora é um tipo datetime, então o .dt funciona
             atividades_df['data_mes'] = atividades_df['data'].dt.strftime('%Y-%m')
             meses_unicos = sorted(atividades_df['data_mes'].unique(), reverse=True)
             mes_selecionado_admin = col_admin2.selectbox("Filtrar por Mês/Ano", ["Todos"] + meses_unicos)
