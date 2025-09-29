@@ -12,7 +12,8 @@ import base64 # Necessário para codificar o logo
 # ==============================
 # --- CONFIGURAÇÕES DE ESTILO E LOGO (PERSONALIZAR ESTES VALORES) ---
 # Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
-LOGO_PATH = "LOGO_01 3.png" 
+# CORREÇÃO: Usando o nome do arquivo mais recente fornecido
+LOGO_PATH = "image_61d8ab.png" 
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
@@ -26,9 +27,6 @@ SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0
 # CORREÇÃO: Acessa o arquivo PNG usando o caminho 'files/<nome_do_arquivo>' 
 # que o Streamlit disponibiliza para arquivos carregados.
 LOGO_URL = f"files/{LOGO_PATH}"
-
-# Remove a função de base64 que estava causando problemas de carregamento
-# e a chamada que dependia dela, usando apenas a URL resolvida acima.
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -1103,8 +1101,3 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
-
-
-
-
