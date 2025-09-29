@@ -12,7 +12,7 @@ import base64 # Necessário para codificar o logo
 # ==============================
 # --- CONFIGURAÇÕES DE ESTILO E LOGO (PERSONALIZAR ESTES VALORES) ---
 # Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
-LOGO_PATH = "LOGO_01 3.png" # NOVO LOGO PNG
+LOGO_PATH = "LOGO_01 3.png" 
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
@@ -20,28 +20,15 @@ COR_FUNDO_APP = "#FFFFFF"    # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # --------------------------------------------------------------------
 
-# Função para carregar e codificar o logo em Base64
-def get_base64_of_file(path):
-    """Lê um arquivo e retorna seu conteúdo codificado em Base64."""
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
-    except FileNotFoundError:
-        # Se o arquivo não for encontrado no caminho local, retorna um placeholder
-        st.warning(f"Aviso: Arquivo de logo '{path}' não encontrado. Usando placeholder.")
-        return None
-
-# Tenta carregar o logo e gerar a URL em Base64
-base64_logo_data = get_base64_of_file(LOGO_PATH)
-if base64_logo_data:
-    LOGO_URL = f"data:image/png;base64,{base64_logo_data}"
-else:
-    # URL de um placeholder simples caso a leitura falhe
-    LOGO_URL = "https://placehold.co/150x50/313191/FFFFFF?text=SINAPSIS"
-
 # Paleta de cores customizada para Plotly (usada nos gráficos)
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
+
+# CORREÇÃO: Acessa o arquivo PNG usando o caminho 'files/<nome_do_arquivo>' 
+# que o Streamlit disponibiliza para arquivos carregados.
+LOGO_URL = f"files/{LOGO_PATH}"
+
+# Remove a função de base64 que estava causando problemas de carregamento
+# e a chamada que dependia dela, usando apenas a URL resolvida acima.
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -1109,7 +1096,6 @@ else:
                         else:
                             st.error(mensagem)
                         
-                        # Recarrega o Streamlit
                         st.rerun() # SUBSTITUÍDO: st.experimental_rerun() -> st.rerun()
                     
             except KeyError as e:
@@ -1117,6 +1103,7 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
 
 
 
