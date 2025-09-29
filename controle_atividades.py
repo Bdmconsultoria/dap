@@ -12,8 +12,8 @@ import base64 # Necessário para codificar o logo
 # ==============================
 # --- CONFIGURAÇÕES DE ESTILO E LOGO (PERSONALIZAR ESTES VALORES) ---
 # Cores da Sinapsis: Principal (#313191), Secundária (#19c0d1), Cinza (#444444)
-# CORREÇÃO: Usando o nome do arquivo mais recente fornecido
-LOGO_PATH = "image_61d8ab.png" 
+# O logo será deixado sem caminho, pois o carregamento está instável.
+LOGO_PATH = "" 
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
@@ -24,9 +24,8 @@ COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # Paleta de cores customizada para Plotly (usada nos gráficos)
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
-# CORREÇÃO: Acessa o arquivo PNG usando o caminho 'files/<nome_do_arquivo>' 
-# que o Streamlit disponibiliza para arquivos carregados.
-LOGO_URL = f"files/{LOGO_PATH}"
+# Ajuste da URL do Logo (Vazio, conforme solicitado)
+LOGO_URL = ""
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -506,10 +505,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.sidebar.markdown(
-    f'<img src="{LOGO_URL}" class="logo-img">',
-    unsafe_allow_html=True
-)
+# Renderiza o logo APENAS se o caminho for definido (foi removido para estabilidade)
+if LOGO_URL:
+    st.sidebar.markdown(
+        f'<img src="{LOGO_URL}" class="logo-img">',
+        unsafe_allow_html=True
+    )
+else:
+    # Adiciona um espaço para compensar a falta do logo
+    st.sidebar.markdown("<br>", unsafe_allow_html=True)
 # --------------------------------------------------------------------
 
 if st.session_state["usuario"] is None:
@@ -601,7 +605,8 @@ else:
             projeto = st.selectbox("Projeto", PROJETOS_SELECT)
             # A porcentagem mínima deve ser 1 para evitar lançamentos vazios
             porcentagem = st.slider("Porcentagem (%)", 1, 100, 100) 
-            observacao = st.text_area("Observação")
+            # CAMPO OBSERVAÇÃO AGORA NÃO É OBRIGATÓRIO
+            observacao = st.text_area("Observação (Opcional)")
             
             if st.form_submit_button("Salvar Lançamento"):
                 
@@ -613,11 +618,8 @@ else:
                     st.error("Por favor, selecione um Mês, Descrição e Projeto válidos.")
                     st.stop()
                 
-                # 2. Validação de Observação
-                if not observacao.strip():
-                    st.error("A observação é obrigatória.")
-                    st.stop()
-                    
+                # 2. Validação de Observação foi removida. O campo pode ser nulo/vazio.
+                
                 # --- VALIDAÇÃO DE 100% MENSAL ---
                 # 3. Obter a soma das porcentagens já lançadas para o MÊS/ANO e usuário
                 total_existente = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select)
@@ -632,7 +634,10 @@ else:
                     )
                 else:
                     # 5. Salvar se a validação passar
-                    if salvar_atividade(st.session_state["usuario"], mes_num, ano_select, descricao, projeto, porcentagem, observacao):
+                    # Garante que observacao é uma string (evita nulo no DB)
+                    obs_final = observacao if observacao else ''
+
+                    if salvar_atividade(st.session_state["usuario"], mes_num, ano_select, descricao, projeto, porcentagem, obs_final):
                         # Invalida o cache para forçar a recarga dos dados na próxima execução
                         carregar_dados.clear()
                         
@@ -676,7 +681,8 @@ else:
                 descricao_edit = st.selectbox("Descrição", DESCRICOES_SELECT, index=default_desc_idx)
                 projeto_edit = st.selectbox("Projeto", PROJETOS_SELECT, index=default_proj_idx)
                 porcentagem_edit = st.slider("Porcentagem (%)", 1, 100, atividade_edit['porcentagem']) 
-                observacao_edit = st.text_area("Observação", atividade_edit['observacao'])
+                # CAMPO OBSERVAÇÃO AGORA NÃO É OBRIGATÓRIO
+                observacao_edit = st.text_area("Observação (Opcional)", atividade_edit['observacao'])
                 
                 col_save, col_cancel = st.columns(2)
                 
@@ -689,10 +695,7 @@ else:
                         st.error("Por favor, selecione um Mês, Descrição e Projeto válidos.")
                         st.stop()
                     
-                    # 2. Validação de Observação
-                    if not observacao_edit.strip():
-                        st.error("A observação é obrigatória.")
-                        st.stop()
+                    # 2. Validação de Observação foi removida.
                         
                     # --- VALIDAÇÃO DE 100% MENSAL NA EDIÇÃO ---
                     # Exclui a porcentagem da própria atividade_edit
@@ -711,6 +714,9 @@ else:
                         )
                     else:
                         # 3. Salvar Edição
+                        # Garante que observacao é uma string (evita nulo no DB)
+                        obs_final = observacao_edit if observacao_edit else ''
+                        
                         if salvar_atividade(
                             st.session_state["usuario"], 
                             mes_num_edit, 
@@ -718,7 +724,7 @@ else:
                             descricao_edit, 
                             projeto_edit, 
                             porcentagem_edit, 
-                            observacao_edit, 
+                            obs_final, 
                             atividade_id=st.session_state['edit_id']
                         ):
                             carregar_dados.clear()
@@ -825,7 +831,8 @@ else:
                 mes_str = MESES.get(row['mes'], 'Mês Inválido')
                 st.markdown(f"**ID {row['id']}** | 🗓️ **{mes_str}/{row['ano']}** | **{row['descricao']}** ({row['porcentagem']}%)")
                 st.markdown(f"**Projeto:** *{row['projeto']}*")
-                st.markdown(f"**Obs:** {row['observacao']}")
+                # Garante que a observação aparece mesmo se for nula/vazia
+                st.markdown(f"**Obs:** {row['observacao'] if row['observacao'] else '(Não informada)'}")
             
             with col2:
                 # Botão Editar
@@ -1101,3 +1108,5 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
+
