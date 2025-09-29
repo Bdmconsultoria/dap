@@ -518,8 +518,7 @@ else:
     elif aba == "Importar Dados" and st.session_state["admin"]:
         st.header("⬆️ Importação de Dados em Massa (Admin)")
         st.warning(
-            "⚠️ **Aviso de Data:** Seu arquivo CSV contém apenas Mês e Ano. O sistema usará o **dia 1** "
-            "do mês para preencher o campo `data` (data) no banco de dados. "
+            "⚠️ **Aviso de Formato:** Seu arquivo deve conter uma coluna **'Data'** no formato Mês/Ano (MM/AAAA) ou Dia/Mês/Ano (DD/MM/AAAA). "
             "A porcentagem será multiplicada por 100 (ex: 0.25 -> 25%)."
         )
         
@@ -548,7 +547,8 @@ else:
                             df_attempt = pd.read_csv(io.StringIO(file_content), sep=sep, engine='python')
                             
                             # Verifica se o número de colunas parece razoável (ex: 7 colunas esperadas)
-                            if df_attempt.shape[1] >= 7:
+                            # Agora esperamos 5 colunas essenciais: Nome, Data, Descrição, Projeto, Porcentagem
+                            if df_attempt.shape[1] >= 5:
                                 df_import = df_attempt
                                 break
                             else:
@@ -573,26 +573,37 @@ else:
                 st.dataframe(df_import.head())
                 
                 # 2. Renomear e Mapear Colunas
-                colunas_mapeamento = {
+                # Mapeamento atualizado para a nova coluna 'Data' e removendo 'Mês'/'Ano'
+                colunas_mapeamento_origem = {
                     'Nome': 'usuario',
-                    'Mês': 'mes',
-                    'Ano': 'ano',
+                    'Data': 'data_str', # Coluna temporária para a string/objeto de data
                     'Descrição': 'descricao',
                     'Projeto': 'projeto',
                     'Porcentagem': 'porcentagem',
                     'Observação (Opcional)': 'observacao'
                 }
                 
-                # Tratar nomes de colunas para garantir que o mapeamento funcione mesmo com espaços em branco extras
-                df_import.columns = df_import.columns.str.strip()
+                # 2.1 Uniformizar nomes de colunas do arquivo para minúsculas e sem espaços
+                df_import.columns = df_import.columns.str.strip().str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8').str.lower()
                 
-                df_import.rename(columns=colunas_mapeamento, inplace=True)
+                # 2.2 Cria um dicionário de renomeação case-insensitive
+                # Ex: mapeia 'nome' (minúsculo do arquivo) para 'usuario' (minúsculo de destino)
+                colunas_renomear = {origem.lower(): destino for origem, destino in colunas_mapeamento_origem.items()}
                 
-                # Garantir que a coluna 'usuario' exista após a renomeação
-                if 'usuario' not in df_import.columns:
-                    raise KeyError("'Nome' ou 'usuario' não encontrada no arquivo após renomeação. Verifique o cabeçalho.")
+                # Remove as chaves 'mês' e 'ano' do mapeamento, caso existam, para evitar conflitos
+                if 'mês' in colunas_renomear: del colunas_renomear['mês']
+                if 'ano' in colunas_renomear: del colunas_renomear['ano']
 
-                # 3. PRÉ-CADASTRO DE USUÁRIOS
+                df_import.rename(columns=colunas_renomear, inplace=True)
+
+                # 2.3 Garantir que a coluna 'usuario' (antes Nome) e 'data_str' (antes Data) existam
+                colunas_base_necessarias = ['usuario', 'data_str', 'descricao', 'projeto', 'porcentagem']
+                for col in colunas_base_necessarias:
+                    if col not in df_import.columns:
+                        # Tenta deduzir o nome original ou falha
+                        raise KeyError(f"A coluna **'{col.capitalize()}'** não foi encontrada no arquivo após a renomeação. Verifique se o nome do cabeçalho está correto.")
+
+                # 3. PRÉ-CADASTRO DE USUÁRIOS (Sem mudanças na lógica)
                 usuarios_csv = df_import['usuario'].dropna().astype(str).unique().tolist()
                 
                 if not usuarios_csv:
@@ -613,38 +624,34 @@ else:
                     
                     # 4.1. Conversão Rígida e Limpeza de Dados Sujos/Finais
                     
-                    # Transforma em numérico, forçando erro para NaN
-                    df_import['mes'] = pd.to_numeric(df_import['mes'], errors='coerce')
-                    df_import['ano'] = pd.to_numeric(df_import['ano'], errors='coerce')
+                    # Converte a coluna de data combinada para o tipo datetime. 
+                    # errors='coerce' transforma falhas de conversão em NaT (Not a Time)
+                    # dayfirst=True tenta interpretar o formato DD/MM/AAAA ou MM/AAAA (assumindo o dia 1)
+                    df_import['data'] = pd.to_datetime(df_import['data_str'], errors='coerce', dayfirst=True)
+                    
+                    # Converte a porcentagem para numérico
                     df_import['porcentagem'] = pd.to_numeric(df_import['porcentagem'], errors='coerce')
                     
-                    # Remove linhas que não têm Mês, Ano ou Porcentagem válidos (inclui sumários e rodapés)
-                    df_import.dropna(subset=['mes', 'ano', 'porcentagem'], inplace=True)
+                    # Remove linhas que não têm Data válida, Usuário ou Porcentagem válidos
+                    df_import.dropna(subset=['data', 'usuario', 'porcentagem'], inplace=True)
                     
-                    # **PASSO CRUCIAL:** Redefinir o índice após o dropna para evitar problemas de mapeamento na criação da data
+                    # **PASSO CRUCIAL:** Redefinir o índice após o dropna para evitar problemas de mapeamento
                     df_import.reset_index(drop=True, inplace=True) 
 
-                    # Converte para INT
-                    df_import['mes'] = df_import['mes'].astype(int)
-                    df_import['ano'] = df_import['ano'].astype(int)
+                    # 4.2. Geração de Colunas de Mês e Ano
                     
-                    # Filtra meses e anos que não fazem sentido (ex: Mês 0, Ano muito antigo)
-                    df_import = df_import[
-                        (df_import['mes'] >= 1) & (df_import['mes'] <= 12) & 
-                        (df_import['ano'] >= 1900)
-                    ]
+                    # a) Extrair mes e ano da nova coluna 'data' (já limpa)
+                    df_import['mes'] = df_import['data'].dt.month.astype(int)
+                    df_import['ano'] = df_import['data'].dt.year.astype(int)
                     
-                    
-                    # 4.2. Geração da Data e Conversão da Porcentagem
-                    
-                    # a) Criar a coluna 'data' com o dia 1 
-                    df_import['data'] = pd.to_datetime(df_import[['ano', 'mes']].assign(dia=1))
-                    
-                    # b) Converter 'porcentagem' (float decimal) para INT (0-100)
+                    # b) Conversão da Porcentagem (float decimal) para INT (0-100)
                     df_import['porcentagem'] = (df_import['porcentagem'] * 100).round().astype(int)
                     
                     # c) Tratar observações nulas (NaN)
-                    df_import['observacao'].fillna('', inplace=True)
+                    if 'observacao' in df_import.columns:
+                        df_import['observacao'].fillna('', inplace=True)
+                    else:
+                        df_import['observacao'] = '' # Adiciona coluna vazia se não existir
 
                     # d) Garantir que apenas colunas necessárias e transformadas existam
                     colunas_finais = ['usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao']
@@ -673,5 +680,3 @@ else:
             except Exception as e:
                 # Captura erros de decodificação genéricos
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
-
