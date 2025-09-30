@@ -66,7 +66,10 @@ def setup_db():
                     admin BOOLEAN DEFAULT FALSE
                 );
             """)
+            
             # Tabela ATIVIDADES
+            # NOTA: O 'status' está aqui apenas para o CREATE TABLE inicial.
+            # A lógica de ALTER abaixo é a que garante a existência em DBs preexistentes.
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS atividades (
                     id SERIAL PRIMARY KEY,
@@ -78,20 +81,29 @@ def setup_db():
                     projeto VARCHAR(255) NOT NULL,
                     porcentagem INTEGER NOT NULL,
                     observacao TEXT,
-                    status VARCHAR(50) DEFAULT 'Pendente'
+                    status VARCHAR(50) DEFAULT 'Pendente' 
                 );
             """)
-            # NOVO: ADICIONA A COLUNA STATUS SE ELA AINDA NÃO EXISTIR (Correção do erro)
+            
+            # CORREÇÃO CRÍTICA: Adiciona a coluna STATUS se ela não existir
             try:
+                # 1. Verifica se a coluna 'status' existe
                 cursor.execute("""
-                    ALTER TABLE atividades
-                    ADD COLUMN status VARCHAR(50) DEFAULT 'Pendente';
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='atividades' AND column_name='status';
                 """)
-                conn.commit()
-            except psycopg2.ProgrammingError as e:
-                # Ignora o erro se a coluna já existir
-                if 'column "status" already exists' not in str(e):
-                    raise
+                exists = cursor.fetchone()
+                
+                # 2. Se não existir, executa o ALTER TABLE
+                if not exists:
+                    cursor.execute("""
+                        ALTER TABLE atividades
+                        ADD COLUMN status VARCHAR(50) DEFAULT 'Pendente';
+                    """)
+                    conn.commit()
+            except Exception as e:
+                # Loga o erro, mas não para o app, pois o erro de EXISTÊNCIA pode ser ignorado.
+                st.error(f"Aviso de migração de tabela: {e}")
                 conn.rollback() 
             
             # NOVA TABELA: HIERARQUIA
@@ -1245,5 +1257,4 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
 
