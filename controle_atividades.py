@@ -87,7 +87,7 @@ def setup_db():
             
             # CORREÇÃO CRÍTICA: Adiciona a coluna STATUS se ela não existir
             try:
-                # 1. Verifica se a coluna 'status' existe
+                # 1. Verifica se a coluna 'status' existe na tabela 'atividades'
                 cursor.execute("""
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name='atividades' AND column_name='status';
@@ -102,7 +102,7 @@ def setup_db():
                     """)
                     conn.commit()
             except Exception as e:
-                # Loga o erro, mas não para o app, pois o erro de EXISTÊNCIA pode ser ignorado.
+                # Loga o erro, mas não para o app
                 st.error(f"Aviso de migração de tabela: {e}")
                 conn.rollback() 
             
@@ -319,25 +319,60 @@ def carregar_hierarquia():
 
 @st.cache_data(ttl=600)
 def carregar_dados():
-    """Carrega todos os usuários e atividades do banco de dados para DataFrames."""
+    """
+    Carrega todos os usuários e atividades do banco de dados para DataFrames.
+    Implementa tratamento de erro para a coluna 'status' durante a migração inicial.
+    """
     conn = get_db_connection()
     if conn is None: 
         return pd.DataFrame(), pd.DataFrame()
+    
+    # 1. Tentativa de SELECT com a coluna 'status'
+    query_full = """
+        SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status
+        FROM atividades ORDER BY ano DESC, mes DESC, data DESC;
+    """
+    # 2. Tentativa de SELECT SEM a coluna 'status' (para migração)
+    query_base = """
+        SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao
+        FROM atividades ORDER BY ano DESC, mes DESC, data DESC;
+    """
+
     try:
-        # Carrega dados com o novo campo 'status'
         usuarios_df = pd.read_sql("SELECT usuario, admin FROM usuarios;", conn)
-        atividades_df = pd.read_sql("""
-            SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status
-            FROM atividades ORDER BY ano DESC, mes DESC, data DESC;
-        """, conn)
+        atividades_df = pd.read_sql(query_full, conn)
         
+        # Se chegou aqui, a coluna 'status' existe.
         if not atividades_df.empty:
             atividades_df['data'] = pd.to_datetime(atividades_df['data'])
             
         return usuarios_df, atividades_df
+        
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        return pd.DataFrame(), pd.DataFrame()
+        # Se a exceção for sobre a coluna 'status' não existir (erro de migração):
+        if 'column "status" does not exist' in str(e):
+            st.warning("⚠️ Tentativa de carregamento sem a coluna 'status' (migração em andamento).")
+            
+            try:
+                # Tenta carregar sem a coluna 'status'
+                atividades_df = pd.read_sql(query_base, conn)
+                if not atividades_df.empty:
+                    atividades_df['data'] = pd.to_datetime(atividades_df['data'])
+                    # Adiciona a coluna 'status' com valor padrão para evitar erros no resto do app
+                    atividades_df['status'] = 'Pendente' 
+                    st.session_state['db_migrating'] = True
+                    st.rerun() # Força recarregar para pegar a coluna na próxima execução
+                
+                return usuarios_df, atividades_df # Retorna os dados base
+
+            except Exception as e2:
+                st.error(f"Erro fatal ao carregar dados base: {e2}")
+                return pd.DataFrame(), pd.DataFrame()
+        else:
+            # Outros erros de DB
+            st.error(f"Erro ao carregar dados: {e}")
+            return pd.DataFrame(), pd.DataFrame()
+            
     finally:
         conn.close()
 
@@ -637,7 +672,6 @@ else:
 
     abas = ["Lançar Atividade", "Minhas Atividades"]
     if st.session_state["admin"]:
-        # Se for admin, adiciona a aba de gestão
         abas += ["Gerenciar Usuários", "Gerenciar Time", "Consolidado", "Importar Dados"]
 
     aba = st.sidebar.radio("Menu", abas)
@@ -1178,7 +1212,6 @@ else:
                     'Projeto': 'projeto',
                     'Porcentagem': 'porcentagem',
                     'Observação (Opcional)': 'observacao',
-                    # Não precisamos da coluna status no import, será PENDENTE por default
                 }
                 
                 df_import.columns = df_import.columns.str.strip().str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8').str.lower()
@@ -1257,4 +1290,5 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
 
