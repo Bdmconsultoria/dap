@@ -728,8 +728,8 @@ else:
 
     # --- NOVO: BOTÃO E LÓGICA DE ALTERAR SENHA ---
     if st.sidebar.button("🔑 Alterar Senha"):
+        # Alterna o estado de exibição do formulário
         st.session_state['show_change_password'] = not st.session_state['show_change_password']
-        # Força o rerun para mostrar o formulário imediatamente na sidebar
         st.rerun()
 
     if st.session_state['show_change_password']:
@@ -1070,10 +1070,16 @@ else:
             
             descricao = st.selectbox("Descrição", DESCRICOES_SELECT)
             projeto = st.selectbox("Projeto", PROJETOS_SELECT)
-            porcentagem = st.slider("Porcentagem (%)", 1, 100, 100) 
+            
+            # --- AJUSTE: MUDANÇA PARA st.number_input ---
+            porcentagem = st.number_input("Porcentagem (%)", min_value=1, max_value=100, value=100, step=1)
+            
             observacao = st.text_area("Observação (Opcional)")
             
             if st.form_submit_button("Salvar Lançamento"):
+                
+                # Garante que porcentagem é um inteiro
+                porcentagem_int = int(porcentagem)
                 
                 mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
 
@@ -1083,18 +1089,18 @@ else:
                 
                 # --- VALIDAÇÃO DE 100% MENSAL ---
                 total_existente = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select)
-                novo_total = total_existente + porcentagem
+                novo_total = total_existente + porcentagem_int
 
                 if novo_total > 100:
                     st.error(
                         f"⚠️ **Alocação Excedida!** O total de porcentagem lançado para **{mes_select}/{ano_select}** "
-                        f"é de **{total_existente}%**. A nova atividade de **{porcentagem}%** faria o total ser **{novo_total}%**, "
+                        f"é de **{total_existente}%**. A nova atividade de **{porcentagem_int}%** faria o total ser **{novo_total}%**, "
                         f"que excede o limite de 100%."
                     )
                 else:
                     obs_final = observacao if observacao else ''
 
-                    if salvar_atividade(st.session_state["usuario"], mes_num, ano_select, descricao, projeto, porcentagem, obs_final):
+                    if salvar_atividade(st.session_state["usuario"], mes_num, ano_select, descricao, projeto, porcentagem_int, obs_final):
                         carregar_dados.clear()
                         
                         if novo_total == 100:
@@ -1132,12 +1138,18 @@ else:
                 
                 descricao_edit = st.selectbox("Descrição", DESCRICOES_SELECT, index=default_desc_idx)
                 projeto_edit = st.selectbox("Projeto", PROJETOS_SELECT, index=default_proj_idx)
-                porcentagem_edit = st.slider("Porcentagem (%)", 1, 100, atividade_edit['porcentagem']) 
+                
+                # --- AJUSTE: MUDANÇA PARA st.number_input NA EDIÇÃO ---
+                porcentagem_edit = st.number_input("Porcentagem (%)", min_value=1, max_value=100, value=atividade_edit['porcentagem'], step=1)
+                
                 observacao_edit = st.text_area("Observação (Opcional)", atividade_edit['observacao'])
                 
                 col_save, col_cancel = st.columns(2)
                 
                 if col_save.form_submit_button("Salvar Edição"):
+                    
+                    # Garante que porcentagem é um inteiro
+                    porcentagem_edit_int = int(porcentagem_edit)
                     
                     mes_num_edit = next((k for k, v in MESES.items() if v == mes_edit), None)
 
@@ -1152,7 +1164,7 @@ else:
                         ano_edit,
                         excluido_id=st.session_state['edit_id']
                     )
-                    novo_total = total_existente + porcentagem_edit
+                    novo_total = total_existente + porcentagem_edit_int
 
                     if novo_total > 100:
                         st.error(
@@ -1168,7 +1180,7 @@ else:
                             ano_edit, 
                             descricao_edit, 
                             projeto_edit, 
-                            porcentagem_edit, 
+                            porcentagem_edit_int, 
                             obs_final, 
                             atividade_id=st.session_state['edit_id']
                         ):
@@ -1271,246 +1283,6 @@ else:
                     args=(row['id'],) # Passa o ID da atividade
                 )
             st.markdown("---")
-
-
-    # ==============================
-    # 7.2. Gerenciar Time (Visão de Gestor e Aprovação)
-    # ==============================
-    # Habilitado para Admin OU Gerente (pela lógica do menu)
-    elif aba == "Gerenciar Time":
-        st.header("🤝 Gerenciar Time e Aprovação de Atividades")
-        
-        # Recarrega a hierarquia para o caso de ter sido alterada na mesma sessão
-        hierarquia_df_reloaded = carregar_hierarquia()
-        usuarios_list = usuarios_df['usuario'].tolist()
-        
-        # O Gerente Padrão (usuário logado) ou Admin é o foco inicial
-        usuario_logado = st.session_state["usuario"]
-        
-        # --- DEFINIÇÃO DE QUEM PODE GERENCIAR QUEM ---
-        
-        # 1. ADMIN pode gerenciar TODOS (configurar hierarquia de terceiros)
-        if st.session_state["admin"]:
-            st.info("Você é Administrador e pode configurar e visualizar **qualquer** time.")
-            
-            # --- 1. CONFIGURAR HIERARQUIA (Apenas para ADMIN) ---
-            st.subheader("1. Configurar Hierarquia (Admin)")
-            
-            gerentes_disponiveis = sorted(usuarios_list)
-            
-            with st.form("form_config_hierarquia"):
-                col_g1, col_g2 = st.columns(2)
-                
-                # Permite que o Admin escolha o Gerente
-                gerente_selecionado = col_g1.selectbox("Gerente", gerentes_disponiveis, key="sb_gerente")
-                
-                # Subordinados disponíveis (todos, exceto o gerente selecionado)
-                subordinados_disponiveis = [u for u in usuarios_list if u != gerente_selecionado]
-                subordinado_selecionado = col_g2.selectbox(
-                    "Novo Liderado", 
-                    ["--- Selecione ---"] + sorted(subordinados_disponiveis),
-                    key="sb_subordinado"
-                )
-                
-                if st.form_submit_button("Adicionar/Atualizar Liderado"):
-                    if subordinado_selecionado != "--- Selecione ---":
-                        if salvar_hierarquia(gerente_selecionado, subordinado_selecionado):
-                            st.success(f"✅ {subordinado_selecionado} adicionado como liderado de **{gerente_selecionado}**.")
-                            carregar_hierarquia.clear()
-                            st.rerun()
-                        else:
-                            st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
-                    else:
-                        st.warning("Selecione um liderado válido.")
-
-            st.markdown("---")
-            
-            # --- 1.1. Visualização e Remoção da Hierarquia (Apenas para ADMIN) ---
-            st.subheader("2. Visualizar e Remover Associações (Admin)")
-            
-            if hierarquia_df_reloaded.empty:
-                st.info("Nenhuma hierarquia configurada.")
-            else:
-                st.dataframe(hierarquia_df_reloaded, use_container_width=True)
-                
-                # Remoção de Hierarquia
-                with st.form("form_remover_hierarquia"):
-                    st.markdown("##### Remover Associação")
-                    
-                    gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
-                    gerente_remover = st.selectbox("Gerente (Remoção)", gerentes_remover_list, key="gerente_remover")
-                    
-                    # Filtra subordinados com base no gerente selecionado
-                    subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
-                    subordinado_remover = st.selectbox("Liderado a Remover", sorted(subordinados_do_gerente), key="subordinado_remover")
-
-                    if st.form_submit_button("Remover Associação"):
-                        if apagar_hierarquia(gerente_remover, subordinado_remover):
-                            st.success(f"❌ Associação entre {gerente_remover} e {subordinado_remover} removida.")
-                            carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
-                            st.rerun()
-                        else:
-                            st.error("Erro ao remover hierarquia.")
-        
-        # 2. NÃO-ADMIN (Gerente): Só gerencia seu próprio time
-        
-        # --- 3. APROVAÇÃO E ACOMPANHAMENTO DE EQUIPES ---
-        st.markdown("---")
-        st.subheader("Análise e Aprovação de Atividades")
-        
-        gerentes_com_time = hierarquia_df_reloaded['gerente'].unique().tolist()
-        
-        if not gerentes_com_time or (is_manager and usuario_logado not in gerentes_com_time):
-            st.warning("Você não está configurado como gerente de nenhum time.")
-            st.stop()
-        
-        if st.session_state["admin"]:
-             # Admin seleciona qualquer time
-             gerente_a_analisar = st.selectbox(
-                "Selecione o Time para Análise", 
-                sorted(gerentes_com_time)
-            )
-        else:
-             # Gerente só vê o próprio time
-             gerente_a_analisar = usuario_logado
-             st.markdown(f"**Time em Análise:** {gerente_a_analisar}")
-
-        if gerente_a_analisar not in gerentes_com_time:
-             st.error("Time inválido selecionado.")
-             st.stop()
-
-
-        # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
-        
-        meu_time_df = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_a_analisar]
-        subordinados_list = meu_time_df['subordinado'].tolist()
-            
-        # Filtros de Mês/Ano para a análise do time
-        col_m1, col_m2 = st.columns(2)
-        
-        hoje = datetime.now()
-        mes_vigente_num = hoje.month
-        ano_vigente = hoje.year
-        
-        meses_para_filtro = list(MESES.values())
-        mes_vigente_str = MESES.get(mes_vigente_num, 'Mês Inválido')
-        
-        try:
-            default_mes_idx = meses_para_filtro.index(mes_vigente_str)
-        except ValueError:
-            default_mes_idx = 0 
-            
-        mes_nome_analise = col_m1.selectbox("Mês de Referência", meses_para_filtro, index=default_mes_idx, key="sb_mes_analise")
-        ano_analise = col_m2.selectbox("Ano de Referência", ANOS, index=ANOS.index(ano_vigente), key="sb_ano_analise")
-        
-        mes_num_analise = next((k for k, v in MESES.items() if v == mes_nome_analise), None)
-        
-        if mes_num_analise is None:
-            st.error("Mês de análise inválido.")
-            st.stop()
-        
-        # DataFrame com atividades do time no mês/ano selecionado
-        df_time_mes = atividades_df[
-            (atividades_df['usuario'].isin(subordinados_list)) & 
-            (atividades_df['mes'] == mes_num_analise) & 
-            (atividades_df['ano'] == ano_analise)
-        ]
-        
-        # Calcula o total alocado por usuário
-        df_resumo_alocacao = df_time_mes.groupby('usuario')['porcentagem'].sum().reset_index()
-        df_resumo_alocacao.columns = ['Subordinado', 'Total Alocado (%)']
-        
-        # Adiciona usuários sem lançamentos (0%)
-        usuarios_com_lancamento = df_resumo_alocacao['Subordinado'].tolist()
-        usuarios_sem_lancamento = [u for u in subordinados_list if u not in usuarios_com_lancamento]
-        
-        for u in usuarios_sem_lancamento:
-            df_resumo_alocacao.loc[len(df_resumo_alocacao)] = [u, 0]
-        
-        # Estilização da tabela de resumo
-        def color_alocacao(val):
-            if isinstance(val, str): return ''
-            color = ''
-            if val < 50:
-                color = 'background-color: #ffcccc'
-            elif 50 <= val < 100:
-                color = 'background-color: #ffffcc'
-            elif val == 100:
-                color = 'background-color: #ccffcc'
-            else:
-                color = 'background-color: #ff9999; font-weight: bold'
-            return color
-        
-        df_final_style = df_resumo_alocacao.style.applymap(color_alocacao, subset=['Total Alocado (%)'])
-        
-        st.markdown(f"##### Status de Alocação do Time **{gerente_a_analisar}** em **{mes_nome_analise}/{ano_analise}**")
-        st.dataframe(df_final_style, use_container_width=True)
-        
-        st.markdown("---")
-        
-        # --- 3. APROVAÇÃO DE LANÇAMENTOS DETALHADOS ---
-        st.subheader(f"Lançamentos do Time **{gerente_a_analisar}** para Aprovação")
-        
-        # Filtros de Status e Usuário para a tabela detalhada
-        col_fa1, col_fa2 = st.columns(2)
-        
-        status_filtro = col_fa1.selectbox("Filtrar por Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"], key="status_filtro_time")
-        subordinado_filtro = col_fa2.selectbox("Filtrar por Liderado", ["Todos"] + sorted(subordinados_list), key="liderado_filtro_time")
-        
-        df_aprovacao = df_time_mes.copy()
-        
-        if status_filtro != "Todos":
-            df_aprovacao = df_aprovacao[df_aprovacao['status'] == status_filtro]
-        
-        if subordinado_filtro != "Todos":
-            df_aprovacao = df_aprovacao[df_aprovacao['usuario'] == subordinado_filtro]
-            
-        if df_aprovacao.empty:
-            st.info("Nenhuma atividade encontrada com os filtros selecionados.")
-        else:
-            
-            # Exibe as atividades para aprovação
-            for idx, row in df_aprovacao.iterrows():
-                
-                # Usa HTML para o badge de status
-                badge_status = f'<span class="status-badge status-{row["status"]}">{row["status"]}</span>'
-
-                col1_d, col2_d, col3_d, col4_d = st.columns([2, 1, 1, 1])
-                
-                with col1_d:
-                    st.markdown(f"**{row['usuario']}** | ID {row['id']} | {badge_status}", unsafe_allow_html=True)
-                    st.markdown(f"**{MESES.get(row['mes'])}/{row['ano']}** | {row['descricao']} ({row['porcentagem']}%)")
-                    st.markdown(f"*Projeto:* {row['projeto']}")
-                    st.markdown(f"*Obs:* {row['observacao'] if row['observacao'] else '(Não informada)'}")
-                    
-                with col2_d:
-                    # --- USANDO on_click CALLBACK ---
-                    st.button(
-                        "✅ Aprovar", 
-                        key=f"apv_{row['id']}", 
-                        on_click=handle_status_update, 
-                        args=(row['id'], 'Aprovado')
-                    )
-                            
-                with col3_d:
-                    # --- USANDO on_click CALLBACK ---
-                    st.button(
-                        "❌ Rejeitar", 
-                        key=f"rej_{row['id']}", 
-                        on_click=handle_status_update, 
-                        args=(row['id'], 'Rejeitado')
-                    )
-
-                with col4_d:
-                    # --- USANDO on_click CALLBACK ---
-                    st.button(
-                        "🗑️ Excluir", 
-                        key=f"del_a_{row['id']}",
-                        on_click=handle_delete,
-                        args=(row['id'],)
-                    )
-                            
-                st.markdown("---")
 
 
     # ==============================
