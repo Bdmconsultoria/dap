@@ -26,7 +26,7 @@ LOGO_URL = ""
 # ==============================
 # 1. Credenciais PostgreSQL
 # ==============================
-# Nota: st.secrets deve estar configurado no seu ambiente Streamlit
+# Nota: st.secrets deve estar configurado no seu seu ambiente Streamlit
 # ATENÇÃO: Verifique se st.secrets está acessível no seu ambiente de execução.
 DB_PARAMS = {
     "host": st.secrets["postgresql"]["host"],
@@ -596,6 +596,13 @@ def handle_status_update(atividade_id, novo_status):
         carregar_dados.clear()
         # st.success(f"Lançamento {atividade_id} atualizado para {novo_status}.") # Mensagem será limpa pelo rerun
         st.rerun()
+
+def is_user_a_manager(usuario, hierarquia_df):
+    """Verifica se o usuário está listado como gerente na tabela de hierarquia."""
+    if hierarquia_df.empty:
+        return False
+    # Checa se o nome do usuário está na coluna 'gerente'
+    return usuario in hierarquia_df['gerente'].unique()
         
 # ==============================
 # 6. Sessão
@@ -608,7 +615,7 @@ if 'edit_id' not in st.session_state:
 
 # Carrega os dados
 usuarios_df, atividades_df = carregar_dados()
-hierarquia_df = carregar_hierarquia()
+hierarquia_df = carregar_hierarquia() # Agora o DataFrame de hierarquia está disponível
 
 # ==============================
 # 7. Login e Navegação
@@ -702,9 +709,18 @@ else:
         st.session_state["admin"] = False
         st.rerun()
 
+    # --- NOVO: VERIFICA SE O USUÁRIO É GERENTE ---
+    is_manager = is_user_a_manager(st.session_state["usuario"], hierarquia_df)
+    
     abas = ["Lançar Atividade", "Minhas Atividades"]
+    
+    # Adiciona a aba "Gerenciar Time" se for Admin OU for Gerente
+    if st.session_state["admin"] or is_manager:
+        abas.append("Gerenciar Time")
+        
+    # Adiciona as abas exclusivas do Admin
     if st.session_state["admin"]:
-        abas += ["Gerenciar Usuários", "Gerenciar Time", "Consolidado", "Importar Dados"]
+        abas += ["Gerenciar Usuários", "Consolidado", "Importar Dados"]
 
     aba = st.sidebar.radio("Menu", abas)
 
@@ -754,89 +770,117 @@ else:
     # ==============================
     # 7.2. Gerenciar Time (Visão de Gestor e Aprovação)
     # ==============================
-    elif aba == "Gerenciar Time" and st.session_state["admin"]:
+    # Habilitado para Admin OU Gerente (pela lógica do menu)
+    elif aba == "Gerenciar Time":
         st.header("🤝 Gerenciar Time e Aprovação de Atividades")
         
+        # Recarrega a hierarquia para o caso de ter sido alterada na mesma sessão
         hierarquia_df_reloaded = carregar_hierarquia()
         usuarios_list = usuarios_df['usuario'].tolist()
         
-        # --- 1. CONFIGURAR HIERARQUIA ---
-        st.subheader("Configurar Hierarquia (Gerentes e Liderados)")
+        # O Gerente Padrão (usuário logado) ou Admin é o foco inicial
+        usuario_logado = st.session_state["usuario"]
         
-        # O administrador pode escolher qualquer usuário para ser o gerente
-        gerentes_disponiveis = sorted(usuarios_list)
+        # --- DEFINIÇÃO DE QUEM PODE GERENCIAR QUEM ---
         
-        with st.form("form_config_hierarquia"):
-            col_g1, col_g2 = st.columns(2)
+        # 1. ADMIN pode gerenciar TODOS (configurar hierarquia de terceiros)
+        if st.session_state["admin"]:
+            st.info("Você é Administrador e pode configurar e visualizar **qualquer** time.")
             
-            # Novo: Permite que o Admin escolha o Gerente
-            gerente_selecionado = col_g1.selectbox("Gerente", gerentes_disponiveis, key="sb_gerente")
+            # --- 1. CONFIGURAR HIERARQUIA (Apenas para ADMIN) ---
+            st.subheader("1. Configurar Hierarquia (Admin)")
             
-            # Subordinados disponíveis (todos, exceto o gerente selecionado)
-            subordinados_disponiveis = [u for u in usuarios_list if u != gerente_selecionado]
-            subordinado_selecionado = col_g2.selectbox(
-                "Novo Liderado", 
-                ["--- Selecione ---"] + sorted(subordinados_disponiveis),
-                key="sb_subordinado"
-            )
+            gerentes_disponiveis = sorted(usuarios_list)
             
-            if st.form_submit_button("Adicionar/Atualizar Liderado"):
-                if subordinado_selecionado != "--- Selecione ---":
-                    if salvar_hierarquia(gerente_selecionado, subordinado_selecionado):
-                        st.success(f"✅ {subordinado_selecionado} adicionado como liderado de {gerente_selecionado}.")
-                        st.rerun()
-                    else:
-                        st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
-                else:
-                    st.warning("Selecione um liderado válido.")
-
-        st.markdown("---")
-        
-        # --- 1.1. Visualização e Remoção da Hierarquia ---
-        st.subheader("Visualizar e Remover Associações")
-        
-        if hierarquia_df_reloaded.empty:
-            st.info("Nenhuma hierarquia configurada.")
-        else:
-            st.dataframe(hierarquia_df_reloaded, use_container_width=True)
-            
-            # Remoção de Hierarquia
-            with st.form("form_remover_hierarquia"):
-                st.markdown("##### Remover Associação")
+            with st.form("form_config_hierarquia"):
+                col_g1, col_g2 = st.columns(2)
                 
-                gerente_remover = st.selectbox("Gerente (Remoção)", sorted(hierarquia_df_reloaded['gerente'].unique()), key="gerente_remover")
+                # Permite que o Admin escolha o Gerente
+                gerente_selecionado = col_g1.selectbox("Gerente", gerentes_disponiveis, key="sb_gerente")
                 
-                # Filtra subordinados com base no gerente selecionado
-                subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
-                subordinado_remover = st.selectbox("Liderado a Remover", sorted(subordinados_do_gerente), key="subordinado_remover")
-
-                if st.form_submit_button("Remover Associação"):
-                    if apagar_hierarquia(gerente_remover, subordinado_remover):
-                        st.success(f"❌ Associação entre {gerente_remover} e {subordinado_remover} removida.")
-                        carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
-                        st.rerun()
+                # Subordinados disponíveis (todos, exceto o gerente selecionado)
+                subordinados_disponiveis = [u for u in usuarios_list if u != gerente_selecionado]
+                subordinado_selecionado = col_g2.selectbox(
+                    "Novo Liderado", 
+                    ["--- Selecione ---"] + sorted(subordinados_disponiveis),
+                    key="sb_subordinado"
+                )
+                
+                if st.form_submit_button("Adicionar/Atualizar Liderado"):
+                    if subordinado_selecionado != "--- Selecione ---":
+                        if salvar_hierarquia(gerente_selecionado, subordinado_selecionado):
+                            st.success(f"✅ {subordinado_selecionado} adicionado como liderado de **{gerente_selecionado}**.")
+                            carregar_hierarquia.clear()
+                            st.rerun()
+                        else:
+                            st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
                     else:
-                        st.error("Erro ao remover hierarquia.")
+                        st.warning("Selecione um liderado válido.")
+
+            st.markdown("---")
+            
+            # --- 1.1. Visualização e Remoção da Hierarquia (Apenas para ADMIN) ---
+            st.subheader("2. Visualizar e Remover Associações (Admin)")
+            
+            if hierarquia_df_reloaded.empty:
+                st.info("Nenhuma hierarquia configurada.")
+            else:
+                st.dataframe(hierarquia_df_reloaded, use_container_width=True)
+                
+                # Remoção de Hierarquia
+                with st.form("form_remover_hierarquia"):
+                    st.markdown("##### Remover Associação")
+                    
+                    gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
+                    gerente_remover = st.selectbox("Gerente (Remoção)", gerentes_remover_list, key="gerente_remover")
+                    
+                    # Filtra subordinados com base no gerente selecionado
+                    subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                    subordinado_remover = st.selectbox("Liderado a Remover", sorted(subordinados_do_gerente), key="subordinado_remover")
+
+                    if st.form_submit_button("Remover Associação"):
+                        if apagar_hierarquia(gerente_remover, subordinado_remover):
+                            st.success(f"❌ Associação entre {gerente_remover} e {subordinado_remover} removida.")
+                            carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
+                            st.rerun()
+                        else:
+                            st.error("Erro ao remover hierarquia.")
+        
+        # 2. NÃO-ADMIN (Gerente): Só gerencia seu próprio time
+        if is_manager and not st.session_state["admin"]:
+            st.info("Você está logado como **Gerente** e pode analisar apenas seu time.")
+            gerente_a_analisar = usuario_logado
+            gerentes_com_time = [usuario_logado]
+            st.subheader("1. Seu Time para Análise")
+        
+        elif st.session_state["admin"]:
+             # Lógica para o Admin selecionar o time que ele quer ver (abaixo)
+             st.markdown("---")
+             st.subheader("3. Aprovação e Acompanhamento de Equipes")
+             gerentes_com_time = hierarquia_df_reloaded['gerente'].unique().tolist()
+             
+             if gerentes_com_time:
+                 gerente_a_analisar = st.selectbox(
+                    "Selecione o Time para Análise", 
+                    sorted(gerentes_com_time)
+                )
+             else:
+                st.info("Nenhum time configurado para análise.")
+                st.stop()
 
 
-        st.markdown("---")
-        
-        # --- 2. APROVAÇÃO E ACOMPANHAMENTO DE ATIVIDADES ---
-        
-        # O Admin deve escolher qual equipe (qual gerente) ele quer analisar
-        st.subheader("Aprovação e Acompanhamento de Equipes")
-        
-        gerentes_com_time = hierarquia_df_reloaded['gerente'].unique().tolist()
-        
-        if not gerentes_com_time:
-            st.info("Nenhum time configurado para aprovação.")
-            # st.stop() # Não para, pois ainda pode haver lançamento em outras abas
-        else:
-            # O admin escolhe qual gerente/time quer visualizar
-            gerente_a_analisar = st.selectbox(
-                "Selecione o Time para Análise", 
-                sorted(gerentes_com_time)
-            )
+        if is_manager or st.session_state["admin"]:
+            
+            if not gerentes_com_time:
+                # Já tratado acima, mas para garantir
+                st.info("Nenhum time disponível para análise.")
+                st.stop()
+
+            # Se for gerente e não admin, o gerente de análise é o próprio usuário logado
+            if not st.session_state["admin"]:
+                 gerente_a_analisar = usuario_logado
+                 
+            # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
             
             meu_time_df = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_a_analisar]
             subordinados_list = meu_time_df['subordinado'].tolist()
@@ -849,10 +893,8 @@ else:
             ano_vigente = hoje.year
             
             meses_para_filtro = list(MESES.values())
-            
             mes_vigente_str = MESES.get(mes_vigente_num, 'Mês Inválido')
             
-            # Encontra o índice do mês vigente na lista para pre-selecionar
             try:
                 default_mes_idx = meses_para_filtro.index(mes_vigente_str)
             except ValueError:
@@ -969,6 +1011,10 @@ else:
                         )
                                 
                     st.markdown("---")
+        else:
+            # Caso não seja Admin e nem Gerente (não deveria acontecer pela lógica do menu)
+            st.error("Acesso negado. Esta aba é exclusiva para Administradores e Gerentes.")
+            st.stop()
 
 
     # ==============================
@@ -1402,4 +1448,3 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
