@@ -13,7 +13,7 @@ import io # Importação necessária para ler arquivos carregados
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO_APP = "#FFFFFF"    # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
@@ -27,6 +27,7 @@ LOGO_URL = ""
 # 1. Credenciais PostgreSQL
 # ==============================
 # Nota: st.secrets deve estar configurado no seu ambiente Streamlit
+# ATENÇÃO: Verifique se st.secrets está acessível no seu ambiente de execução.
 DB_PARAMS = {
     "host": st.secrets["postgresql"]["host"],
     "port": st.secrets["postgresql"]["port"],
@@ -45,6 +46,7 @@ def get_db_connection():
         conn = psycopg2.connect(**DB_PARAMS)
         return conn
     except Exception as e:
+        # Em produção, você pode descomentar esta linha para ver erros de conexão:
         # st.error(f"❌ Erro ao conectar ao banco de dados: {e}")
         return None
 
@@ -53,7 +55,7 @@ def get_db_connection():
 # ==============================
 def setup_db():
     """Cria as tabelas 'usuarios', 'atividades' e 'hierarquia' se elas não existirem
-       e garante que a coluna 'status' exista na tabela 'atividades'."""
+        e garante que a coluna 'status' exista na tabela 'atividades'."""
     conn = get_db_connection()
     if conn is None: return
     try:
@@ -68,8 +70,6 @@ def setup_db():
             """)
             
             # Tabela ATIVIDADES
-            # NOTA: O 'status' está aqui apenas para o CREATE TABLE inicial.
-            # A lógica de ALTER abaixo é a que garante a existência em DBs preexistentes.
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS atividades (
                     id SERIAL PRIMARY KEY,
@@ -103,7 +103,7 @@ def setup_db():
                     conn.commit()
             except Exception as e:
                 # Loga o erro, mas não para o app
-                st.error(f"Aviso de migração de tabela: {e}")
+                # st.error(f"Aviso de migração de tabela: {e}")
                 conn.rollback() 
             
             # NOVA TABELA: HIERARQUIA
@@ -304,6 +304,7 @@ def apagar_hierarquia(gerente, subordinado):
     finally:
         conn.close()
 
+@st.cache_data(ttl=600)
 def carregar_hierarquia():
     """Carrega todas as associações de hierarquia para um DataFrame."""
     conn = get_db_connection()
@@ -312,7 +313,7 @@ def carregar_hierarquia():
         hierarquia_df = pd.read_sql("SELECT gerente, subordinado FROM hierarquia ORDER BY gerente, subordinado;", conn)
         return hierarquia_df
     except Exception as e:
-        st.error(f"Erro ao carregar hierarquia: {e}")
+        # st.error(f"Erro ao carregar hierarquia: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -321,18 +322,17 @@ def carregar_hierarquia():
 def carregar_dados():
     """
     Carrega todos os usuários e atividades do banco de dados para DataFrames.
-    Implementa tratamento de erro para a coluna 'status' durante a migração inicial.
     """
     conn = get_db_connection()
     if conn is None: 
         return pd.DataFrame(), pd.DataFrame()
     
-    # 1. Tentativa de SELECT com a coluna 'status'
+    # Tentativa de SELECT com a coluna 'status'
     query_full = """
         SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status
         FROM atividades ORDER BY ano DESC, mes DESC, data DESC;
     """
-    # 2. Tentativa de SELECT SEM a coluna 'status' (para migração)
+    # Tentativa de SELECT SEM a coluna 'status' (para migração)
     query_base = """
         SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao
         FROM atividades ORDER BY ano DESC, mes DESC, data DESC;
@@ -342,34 +342,29 @@ def carregar_dados():
         usuarios_df = pd.read_sql("SELECT usuario, admin FROM usuarios;", conn)
         atividades_df = pd.read_sql(query_full, conn)
         
-        # Se chegou aqui, a coluna 'status' existe.
         if not atividades_df.empty:
             atividades_df['data'] = pd.to_datetime(atividades_df['data'])
             
         return usuarios_df, atividades_df
         
     except Exception as e:
-        # Se a exceção for sobre a coluna 'status' não existir (erro de migração):
+        # Lógica de migração de status
         if 'column "status" does not exist' in str(e):
-            st.warning("⚠️ Tentativa de carregamento sem a coluna 'status' (migração em andamento).")
+            # st.warning("⚠️ Tentativa de carregamento sem a coluna 'status' (migração em andamento).")
             
             try:
-                # Tenta carregar sem a coluna 'status'
                 atividades_df = pd.read_sql(query_base, conn)
                 if not atividades_df.empty:
                     atividades_df['data'] = pd.to_datetime(atividades_df['data'])
-                    # Adiciona a coluna 'status' com valor padrão para evitar erros no resto do app
                     atividades_df['status'] = 'Pendente' 
                     st.session_state['db_migrating'] = True
-                    st.rerun() # Força recarregar para pegar a coluna na próxima execução
+                    st.rerun() 
                 
-                return usuarios_df, atividades_df # Retorna os dados base
-
+                return usuarios_df, atividades_df 
             except Exception as e2:
                 st.error(f"Erro fatal ao carregar dados base: {e2}")
                 return pd.DataFrame(), pd.DataFrame()
         else:
-            # Outros erros de DB
             st.error(f"Erro ao carregar dados: {e}")
             return pd.DataFrame(), pd.DataFrame()
             
@@ -431,8 +426,7 @@ def bulk_insert_atividades(df_to_insert):
 
 def limpar_nomes_usuarios_db():
     """
-    Executa comandos SQL para remover espaços em branco iniciais/finais
-    nas colunas 'usuario' em ambas as tabelas e recria as chaves primárias/estrangeiras.
+    Limpa espaços em branco iniciais/finais de nomes de usuários no DB.
     """
     conn = get_db_connection()
     if conn is None: return False, "Falha na conexão com o banco de dados."
@@ -452,16 +446,26 @@ def limpar_nomes_usuarios_db():
                 UNION
                 SELECT DISTINCT TRIM(gerente) FROM hierarquia
                 UNION
-                SELECT DISTINCT TRIM(subordinado) FROM hierarquia;
+                SELECT DISTINCT TRIM(subordinado) FROM hierarquia
+                UNION
+                SELECT DISTINCT usuario FROM usuarios;
             """)
-            usuarios_limpos = [row[0] for row in cursor.fetchall()]
+            usuarios_limpos = list(set([row[0] for row in cursor.fetchall()])) # Usar set para garantir unicidade
             
-            # 3. Limpar e Reinserir a tabela usuarios
+            # 3. Preservar status admin
+            cursor.execute("SELECT usuario, admin FROM usuarios;")
+            status_admin_original = dict(cursor.fetchall())
+            
+            # 4. Limpar e Reinserir a tabela usuarios
             cursor.execute("TRUNCATE TABLE usuarios CASCADE;")
             
-            # Reinserir todos os usuários limpos com a senha padrão '123'
-            usuarios_para_reinserir = [(user, '123', False) for user in usuarios_limpos]
-            
+            # Reinserir todos os usuários limpos
+            usuarios_para_reinserir = []
+            for user in usuarios_limpos:
+                # Tenta manter o status de admin, se não, assume False e senha '123'
+                is_admin = status_admin_original.get(user, False)
+                usuarios_para_reinserir.append((user, '123', is_admin))
+
             if usuarios_para_reinserir:
                 query_insert_users = """
                     INSERT INTO usuarios (usuario, senha, admin)
@@ -477,7 +481,7 @@ def limpar_nomes_usuarios_db():
             return True, (
                 f"✅ Sucesso! Limpeza concluída. "
                 f"{atividades_afetadas} atividades e {hierarquia_afetadas} hierarquias corrigidas. "
-                f"{usuarios_reinseridos} usuários reinseridos."
+                f"{usuarios_reinseridos} usuários reinseridos (senha padrão: '123')."
             )
             
     except Exception as e:
@@ -565,6 +569,34 @@ STATUS_CORES = {
     "Rejeitado": "red"
 }
 
+# ==============================
+# 8. Funções de Callback (on_click)
+# ==============================
+
+def set_edit_id(id_atividade):
+    """Define o ID da atividade a ser editada e aciona o rerun."""
+    st.session_state['edit_id'] = id_atividade
+    st.rerun()
+
+def cancelar_edicao():
+    """Cancela a edição."""
+    st.session_state['edit_id'] = None
+    st.rerun() # Precisa de rerun para sair do estado de edição
+
+def handle_delete(atividade_id):
+    """Apaga uma atividade e limpa o cache, forçando o rerun."""
+    if apagar_atividade(atividade_id):
+        carregar_dados.clear()
+        st.success("Atividade apagada!")
+        st.rerun()
+
+def handle_status_update(atividade_id, novo_status):
+    """Atualiza o status de uma atividade e limpa o cache, forçando o rerun."""
+    if atualizar_status_atividade(atividade_id, novo_status):
+        carregar_dados.clear()
+        # st.success(f"Lançamento {atividade_id} atualizado para {novo_status}.") # Mensagem será limpa pelo rerun
+        st.rerun()
+        
 # ==============================
 # 6. Sessão
 # ==============================
@@ -726,52 +758,120 @@ else:
         st.header("🤝 Gerenciar Time e Aprovação de Atividades")
         
         hierarquia_df_reloaded = carregar_hierarquia()
+        usuarios_list = usuarios_df['usuario'].tolist()
         
         # --- 1. CONFIGURAR HIERARQUIA ---
-        st.subheader("Configurar Liderados")
+        st.subheader("Configurar Hierarquia (Gerentes e Liderados)")
         
-        usuarios_list = usuarios_df['usuario'].tolist()
-        usuarios_sem_admin = [u for u in usuarios_list if u != st.session_state['usuario']]
+        # O administrador pode escolher qualquer usuário para ser o gerente
+        gerentes_disponiveis = sorted(usuarios_list)
         
-        col_g1, col_g2 = st.columns(2)
-        
-        gerente_selecionado = col_g1.selectbox("Gerente (Você)", [st.session_state['usuario']], disabled=True)
-        subordinado_selecionado = col_g2.selectbox("Novo Subordinado", ["--- Selecione ---"] + sorted(usuarios_sem_admin))
-        
-        if st.button("Adicionar Liderado"):
-            if subordinado_selecionado != "--- Selecione ---":
-                if salvar_hierarquia(gerente_selecionado, subordinado_selecionado):
-                    st.success(f"✅ {subordinado_selecionado} adicionado como seu liderado.")
-                    st.rerun()
+        with st.form("form_config_hierarquia"):
+            col_g1, col_g2 = st.columns(2)
+            
+            # Novo: Permite que o Admin escolha o Gerente
+            gerente_selecionado = col_g1.selectbox("Gerente", gerentes_disponiveis, key="sb_gerente")
+            
+            # Subordinados disponíveis (todos, exceto o gerente selecionado)
+            subordinados_disponiveis = [u for u in usuarios_list if u != gerente_selecionado]
+            subordinado_selecionado = col_g2.selectbox(
+                "Novo Liderado", 
+                ["--- Selecione ---"] + sorted(subordinados_disponiveis),
+                key="sb_subordinado"
+            )
+            
+            if st.form_submit_button("Adicionar/Atualizar Liderado"):
+                if subordinado_selecionado != "--- Selecione ---":
+                    if salvar_hierarquia(gerente_selecionado, subordinado_selecionado):
+                        st.success(f"✅ {subordinado_selecionado} adicionado como liderado de {gerente_selecionado}.")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
                 else:
-                    st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
+                    st.warning("Selecione um liderado válido.")
 
         st.markdown("---")
         
-        st.subheader("Sua Hierarquia Atual")
-        meu_time_df = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == st.session_state['usuario']]
+        # --- 1.1. Visualização e Remoção da Hierarquia ---
+        st.subheader("Visualizar e Remover Associações")
         
-        if meu_time_df.empty:
-            st.info("Nenhum liderado configurado para você.")
+        if hierarquia_df_reloaded.empty:
+            st.info("Nenhuma hierarquia configurada.")
         else:
+            st.dataframe(hierarquia_df_reloaded, use_container_width=True)
             
-            # --- ACOMPANHAMENTO DO TIME (MÊS VIGENTE) ---
-            st.subheader("Status de Alocação do Time (Mês Vigente)")
+            # Remoção de Hierarquia
+            with st.form("form_remover_hierarquia"):
+                st.markdown("##### Remover Associação")
+                
+                gerente_remover = st.selectbox("Gerente (Remoção)", sorted(hierarquia_df_reloaded['gerente'].unique()), key="gerente_remover")
+                
+                # Filtra subordinados com base no gerente selecionado
+                subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                subordinado_remover = st.selectbox("Liderado a Remover", sorted(subordinados_do_gerente), key="subordinado_remover")
+
+                if st.form_submit_button("Remover Associação"):
+                    if apagar_hierarquia(gerente_remover, subordinado_remover):
+                        st.success(f"❌ Associação entre {gerente_remover} e {subordinado_remover} removida.")
+                        carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
+                        st.rerun()
+                    else:
+                        st.error("Erro ao remover hierarquia.")
+
+
+        st.markdown("---")
+        
+        # --- 2. APROVAÇÃO E ACOMPANHAMENTO DE ATIVIDADES ---
+        
+        # O Admin deve escolher qual equipe (qual gerente) ele quer analisar
+        st.subheader("Aprovação e Acompanhamento de Equipes")
+        
+        gerentes_com_time = hierarquia_df_reloaded['gerente'].unique().tolist()
+        
+        if not gerentes_com_time:
+            st.info("Nenhum time configurado para aprovação.")
+            # st.stop() # Não para, pois ainda pode haver lançamento em outras abas
+        else:
+            # O admin escolhe qual gerente/time quer visualizar
+            gerente_a_analisar = st.selectbox(
+                "Selecione o Time para Análise", 
+                sorted(gerentes_com_time)
+            )
+            
+            meu_time_df = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_a_analisar]
+            subordinados_list = meu_time_df['subordinado'].tolist()
+                
+            # Filtros de Mês/Ano para a análise do time
+            col_m1, col_m2 = st.columns(2)
             
             hoje = datetime.now()
-            mes_vigente = hoje.month
+            mes_vigente_num = hoje.month
             ano_vigente = hoje.year
-            mes_nome = MESES.get(mes_vigente, 'Mês Inválido')
             
-            st.markdown(f"##### Mês de Referência: **{mes_nome}/{ano_vigente}**")
+            meses_para_filtro = list(MESES.values())
             
-            subordinados_list = meu_time_df['subordinado'].tolist()
+            mes_vigente_str = MESES.get(mes_vigente_num, 'Mês Inválido')
             
-            # DataFrame com atividades do time no mês vigente
+            # Encontra o índice do mês vigente na lista para pre-selecionar
+            try:
+                default_mes_idx = meses_para_filtro.index(mes_vigente_str)
+            except ValueError:
+                default_mes_idx = 0 
+                
+            mes_nome_analise = col_m1.selectbox("Mês de Referência", meses_para_filtro, index=default_mes_idx)
+            ano_analise = col_m2.selectbox("Ano de Referência", ANOS, index=ANOS.index(ano_vigente))
+            
+            mes_num_analise = next((k for k, v in MESES.items() if v == mes_nome_analise), None)
+            
+            if mes_num_analise is None:
+                st.error("Mês de análise inválido.")
+                st.stop()
+            
+            # DataFrame com atividades do time no mês/ano selecionado
             df_time_mes = atividades_df[
                 (atividades_df['usuario'].isin(subordinados_list)) & 
-                (atividades_df['mes'] == mes_vigente) & 
-                (atividades_df['ano'] == ano_vigente)
+                (atividades_df['mes'] == mes_num_analise) & 
+                (atividades_df['ano'] == ano_analise)
             ]
             
             # Calcula o total alocado por usuário
@@ -801,18 +901,19 @@ else:
             
             df_final_style = df_resumo_alocacao.style.applymap(color_alocacao, subset=['Total Alocado (%)'])
             
+            st.markdown(f"##### Status de Alocação do Time **{gerente_a_analisar}** em **{mes_nome_analise}/{ano_analise}**")
             st.dataframe(df_final_style, use_container_width=True)
             
             st.markdown("---")
             
             # --- 3. APROVAÇÃO DE LANÇAMENTOS DETALHADOS ---
-            st.subheader("Aprovar e Filtrar Lançamentos do Time")
+            st.subheader(f"Lançamentos do Time **{gerente_a_analisar}** para Aprovação")
             
-            # Filtros de Status e Usuário
+            # Filtros de Status e Usuário para a tabela detalhada
             col_fa1, col_fa2 = st.columns(2)
             
-            status_filtro = col_fa1.selectbox("Filtrar por Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"])
-            subordinado_filtro = col_fa2.selectbox("Filtrar por Liderado", ["Todos"] + subordinados_list)
+            status_filtro = col_fa1.selectbox("Filtrar por Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"], key="status_filtro_time")
+            subordinado_filtro = col_fa2.selectbox("Filtrar por Liderado", ["Todos"] + sorted(subordinados_list), key="liderado_filtro_time")
             
             df_aprovacao = df_time_mes.copy()
             
@@ -841,25 +942,31 @@ else:
                         st.markdown(f"*Obs:* {row['observacao'] if row['observacao'] else '(Não informada)'}")
                         
                     with col2_d:
-                        if st.button("✅ Aprovar", key=f"apv_{row['id']}"):
-                            if atualizar_status_atividade(row['id'], 'Aprovado'):
-                                carregar_dados.clear()
-                                st.success(f"Lançamento {row['id']} aprovado.")
-                                st.rerun()
+                        # --- USANDO on_click CALLBACK ---
+                        st.button(
+                            "✅ Aprovar", 
+                            key=f"apv_{row['id']}", 
+                            on_click=handle_status_update, 
+                            args=(row['id'], 'Aprovado')
+                        )
                                 
                     with col3_d:
-                        if st.button("❌ Rejeitar", key=f"rej_{row['id']}"):
-                            if atualizar_status_atividade(row['id'], 'Rejeitado'):
-                                carregar_dados.clear()
-                                st.warning(f"Lançamento {row['id']} rejeitado.")
-                                st.rerun()
+                        # --- USANDO on_click CALLBACK ---
+                        st.button(
+                            "❌ Rejeitar", 
+                            key=f"rej_{row['id']}", 
+                            on_click=handle_status_update, 
+                            args=(row['id'], 'Rejeitado')
+                        )
 
                     with col4_d:
-                        if st.button("🗑️ Excluir", key=f"del_a_{row['id']}"):
-                            if apagar_atividade(row['id']):
-                                carregar_dados.clear()
-                                st.success("Atividade apagada!")
-                                st.rerun()
+                        # --- USANDO on_click CALLBACK ---
+                        st.button(
+                            "🗑️ Excluir", 
+                            key=f"del_a_{row['id']}",
+                            on_click=handle_delete,
+                            args=(row['id'],)
+                        )
                                 
                     st.markdown("---")
 
@@ -985,9 +1092,8 @@ else:
                             st.success("Atividade editada com sucesso!")
                             st.rerun()
                 
-                if col_cancel.form_submit_button("Cancelar"):
-                    st.session_state['edit_id'] = None
-                    st.rerun()
+                # --- USANDO on_click CALLBACK PARA CANCELAR ---
+                col_cancel.button("Cancelar", on_click=cancelar_edicao)
 
             st.markdown("---") 
 
@@ -1063,16 +1169,22 @@ else:
                 st.markdown(f"**Obs:** {row['observacao'] if row['observacao'] else '(Não informada)'}")
             
             with col2:
-                if col2.button("✍️ Editar", key=f"edit_{row['id']}"):
-                    st.session_state['edit_id'] = row['id']
-                    st.rerun()
+                # --- USANDO on_click CALLBACK PARA EDITAR ---
+                col2.button(
+                    "✍️ Editar", 
+                    key=f"edit_{row['id']}",
+                    on_click=set_edit_id,
+                    args=(row['id'],) # Passa o ID da atividade
+                )
             
             with col3:
-                if col3.button("🗑️ Apagar", key=f"del_{row['id']}"):
-                    if apagar_atividade(row['id']):
-                        carregar_dados.clear()
-                        st.success("Atividade apagada!")
-                        st.rerun()
+                # --- USANDO on_click CALLBACK PARA APAGAR ---
+                col3.button(
+                    "🗑️ Apagar", 
+                    key=f"del_{row['id']}",
+                    on_click=handle_delete,
+                    args=(row['id'],) # Passa o ID da atividade
+                )
             st.markdown("---")
 
 
@@ -1187,12 +1299,12 @@ else:
                                 break
                             else:
                                 raise ValueError(f"Número de colunas inesperado ({df_attempt.shape[1]}).")
-                        
+                            
                         except Exception:
                             continue
                             
                     if df_import is None:
-                         raise Exception("Falha ao tokenizar os dados após múltiplas tentativas de delimitador e encoding. Verifique a formatação do CSV.")
+                            raise Exception("Falha ao tokenizar os dados após múltiplas tentativas de delimitador e encoding. Verifique a formatação do CSV.")
                         
                 elif uploaded_file.name.endswith('.xlsx'):
                     uploaded_file.seek(0)
@@ -1290,5 +1402,4 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
 
