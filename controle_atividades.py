@@ -52,7 +52,8 @@ def get_db_connection():
 # 3. Setup do Banco (criação de tabelas)
 # ==============================
 def setup_db():
-    """Cria as tabelas 'usuarios', 'atividades' e 'hierarquia' se elas não existirem."""
+    """Cria as tabelas 'usuarios', 'atividades' e 'hierarquia' se elas não existirem
+       e garante que a coluna 'status' exista na tabela 'atividades'."""
     conn = get_db_connection()
     if conn is None: return
     try:
@@ -65,7 +66,7 @@ def setup_db():
                     admin BOOLEAN DEFAULT FALSE
                 );
             """)
-            # Tabela ATIVIDADES (Adicionado coluna STATUS)
+            # Tabela ATIVIDADES
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS atividades (
                     id SERIAL PRIMARY KEY,
@@ -80,6 +81,19 @@ def setup_db():
                     status VARCHAR(50) DEFAULT 'Pendente'
                 );
             """)
+            # NOVO: ADICIONA A COLUNA STATUS SE ELA AINDA NÃO EXISTIR (Correção do erro)
+            try:
+                cursor.execute("""
+                    ALTER TABLE atividades
+                    ADD COLUMN status VARCHAR(50) DEFAULT 'Pendente';
+                """)
+                conn.commit()
+            except psycopg2.ProgrammingError as e:
+                # Ignora o erro se a coluna já existir
+                if 'column "status" already exists' not in str(e):
+                    raise
+                conn.rollback() 
+            
             # NOVA TABELA: HIERARQUIA
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS hierarquia (
@@ -1231,3 +1245,5 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
+
