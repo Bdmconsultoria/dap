@@ -938,7 +938,7 @@ else:
 
 
     # ==============================
-    # 7.2. Gerenciar Time (Visão de Gestor e Aprovação)
+    # 7.2. Gerenciar Time (Visão de Gestor e Aprovação) - CORRIGIDO O ERRO DE FORM ANINHADO
     # ==============================
     # Habilitado para Admin OU Gerente (pela lógica do menu)
     elif aba == "Gerenciar Time":
@@ -963,69 +963,84 @@ else:
             
             gerentes_disponiveis = sorted(usuarios_list)
             
+            # Form 1: Adicionar Hierarquia
             with st.form("form_config_hierarquia"):
                 col_g1, col_g2 = st.columns(2)
                 
                 # Permite que o Admin escolha o Gerente
-                gerente_selecionado = col_g1.selectbox("Gerente da Área", gerentes_disponiveis, key="sb_gerente_area") # Termo atualizado
+                gerente_selecionado = col_g1.selectbox("Gerente da Área", gerentes_disponiveis, key="sb_gerente_area") 
                 
                 
                 # Subordinados disponíveis (todos, exceto o gerente selecionado)
                 subordinados_disponiveis = [u for u in usuarios_list if u != gerente_selecionado]
-                pessoa_equipe_selecionada = col_g2.selectbox( # Variável atualizada
-                    "Nova Pessoa da Equipe", # Termo atualizado
+                pessoa_equipe_selecionada = col_g2.selectbox( 
+                    "Nova Pessoa da Equipe", 
                     ["--- Selecione ---"] + sorted(subordinados_disponiveis),
-                    key="sb_pessoa_equipe" # Chave atualizada
+                    key="sb_pessoa_equipe" 
                 )
                 
-                if st.form_submit_button("Adicionar/Atualizar Pessoa da Equipe"): # Termo atualizado
+                if st.form_submit_button("Adicionar/Atualizar Pessoa da Equipe"): 
                     
                     if pessoa_equipe_selecionada != "--- Selecione ---":
                         # Usa a função de salvar original, que usa 'gerente' e 'subordinado' no DB
                         if salvar_hierarquia(gerente_selecionado, pessoa_equipe_selecionada):
-                            st.success(f"✅ {pessoa_equipe_selecionada} adicionado(a) como Pessoa da Equipe de **{gerente_selecionado}**.") # Mensagem atualizada
+                            st.success(f"✅ {pessoa_equipe_selecionada} adicionado(a) como Pessoa da Equipe de **{gerente_selecionado}**.") 
                             carregar_hierarquia.clear()
                             st.rerun()
                         else:
                             st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
                     else:
-                        st.warning("Selecione uma pessoa da equipe válida.") # Mensagem atualizada
+                        st.warning("Selecione uma pessoa da equipe válida.") 
 
-                st.markdown("---")
+            st.markdown("---")
+            
+            # --- 1.1. Visualização e Remoção da Hierarquia (Apenas para ADMIN) ---
+            
+            st.subheader("2. Visualizar e Remover Associações (Admin)")
+            
+            if hierarquia_df_reloaded.empty:
+                st.info("Nenhuma hierarquia configurada.")
+            else:
+                # Renomeia temporariamente o DataFrame para exibição
+                df_exibicao_hierarquia = hierarquia_df_reloaded.rename(columns={'gerente': 'Gerente da Área', 'subordinado': 'Pessoa da Equipe'})
+                st.dataframe(df_exibicao_hierarquia, use_container_width=True)
                 
-                # --- 1.1. Visualização e Remoção da Hierarquia (Apenas para ADMIN) ---
                 
-                st.subheader("2. Visualizar e Remover Associações (Admin)")
-                
-                if hierarquia_df_reloaded.empty:
-                    st.info("Nenhuma hierarquia configurada.")
-                else:
-                    # Renomeia temporariamente o DataFrame para exibição
-                    df_exibicao_hierarquia = hierarquia_df_reloaded.rename(columns={'gerente': 'Gerente da Área', 'subordinado': 'Pessoa da Equipe'})
-                    st.dataframe(df_exibicao_hierarquia, use_container_width=True)
+                # Form 2: Remover Hierarquia (FORA do Form 1)
+                with st.form("form_remover_hierarquia"):
+                    st.markdown("##### Remover Associação")
                     
                     
-                    # Remoção de Hierarquia
-                    with st.form("form_remover_hierarquia"):
-                        st.markdown("##### Remover Associação")
+                    gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
+                    # Adiciona um placeholder para evitar erro se a lista estiver vazia
+                    if not gerentes_remover_list:
+                         gerentes_remover_list = ["Nenhum Gerente Configurado"]
+                         
+                    gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area", disabled=("Nenhum Gerente Configurado" in gerentes_remover_list)) 
+                    
+                    
+                    subordinados_do_gerente = []
+                    if gerente_remover != "Nenhum Gerente Configurado":
+                         subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                    
+                    if not subordinados_do_gerente:
+                        subordinados_do_gerente = ["Nenhuma Pessoa da Equipe"]
                         
-                        
-                        gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
-                        gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area") # Termo atualizado
-                        
-                        # Filtra subordinados com base no gerente selecionado
-                        subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
-                        pessoa_equipe_remover = st.selectbox("Pessoa da Equipe a Remover", sorted(subordinados_do_gerente), key="pessoa_equipe_remover") # Termo atualizado
+                    pessoa_equipe_remover = st.selectbox("Pessoa da Equipe a Remover", sorted(subordinados_do_gerente), key="pessoa_equipe_remover", disabled=("Nenhuma Pessoa da Equipe" in subordinados_do_gerente)) 
 
-                        if st.form_submit_button("Remover Associação"):
+                    if st.form_submit_button("Remover Associação"):
+                        # Só tenta remover se houver seleções válidas
+                        if gerente_remover != "Nenhum Gerente Configurado" and pessoa_equipe_remover != "Nenhuma Pessoa da Equipe":
                             if apagar_hierarquia(gerente_remover, pessoa_equipe_remover):
                                 
-                                st.success(f"❌ Associação entre {gerente_remover} e {pessoa_equipe_remover} removida.") # Mensagem atualizada
+                                st.success(f"❌ Associação entre {gerente_remover} e {pessoa_equipe_remover} removida.") 
                                 carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
                                 st.rerun()
                             else:
                                 
                                 st.error("Erro ao remover hierarquia.")
+                        else:
+                            st.warning("Selecione um gerente e uma pessoa da equipe válidos para remover.")
         
         # 2. NÃO-ADMIN (Gerente): Só gerencia seu próprio time
         
@@ -1036,20 +1051,20 @@ else:
         gerentes_com_time = hierarquia_df_reloaded['gerente'].unique().tolist()
         
         if not gerentes_com_time or (is_manager and usuario_logado not in gerentes_com_time):
-            st.warning("Você não está configurado como gerente de nenhuma equipe.") # Termo atualizado
+            st.warning("Você não está configurado como gerente de nenhuma equipe.") 
             st.stop()
         
         if st.session_state["admin"]:
                 # Admin seleciona qualquer time
                 gerente_a_analisar = st.selectbox(
-                    "Selecione o Gerente da Área para Análise", # Termo atualizado
+                    "Selecione o Gerente da Área para Análise", 
                     sorted(gerentes_com_time)
                 )
         else:
                 # Gerente só vê o próprio time
                 
             gerente_a_analisar = usuario_logado
-            st.markdown(f"**Gerente da Área em Análise:** {gerente_a_analisar}") # Termo atualizado
+            st.markdown(f"**Gerente da Área em Análise:** {gerente_a_analisar}") 
 
         if gerente_a_analisar not in gerentes_com_time:
                 st.error("Gerente da Área inválido selecionado.")
