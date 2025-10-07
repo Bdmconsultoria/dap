@@ -14,7 +14,7 @@ import re # Importação necessária para extrair metadados de hora
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_APP = "#FFFFFF"      # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
@@ -201,7 +201,15 @@ def alterar_senha(usuario, nova_senha):
 def calcular_porcentagem_existente(usuario, mes, ano, excluido_id=None):
     """
     Calcula a soma das porcentagens de atividades já registradas para o usuário no MÊS/ANO,
-    excluindo opcionalmente uma atividade (usado na edição).
+    expandindo o cálculo para ignorar atividades rejeitadas (que não contam para o 100%).
+    
+    A função original já ignora a atividade de edição (excluido_id).
+    
+    Para replicar a lógica do front-end, precisamos de uma versão que só some
+    atividades ativas (não rejeitadas).
+    
+    Como esta função é usada na LÓGICA DE EDIÇÃO do front-end, a lógica de excluir
+    a atividade sendo editada é mantida.
     """
     conn = get_db_connection()
     if conn is None:
@@ -211,7 +219,7 @@ def calcular_porcentagem_existente(usuario, mes, ano, excluido_id=None):
             query = """
                 SELECT COALESCE(SUM(porcentagem), 0)
                 FROM atividades
-                WHERE usuario = %s AND mes = %s AND ano = %s
+                WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado'
             """
             params = [usuario, mes, ano]
             
@@ -744,6 +752,15 @@ if 'edit_id' not in st.session_state:
     st.session_state['edit_id'] = None
 if 'show_change_password' not in st.session_state:
     st.session_state['show_change_password'] = False
+# Novo estado de sessão para o DataFrame de lançamentos (necessário para o data_editor)
+if 'df_lancamentos' not in st.session_state:
+    st.session_state['df_lancamentos'] = pd.DataFrame({
+        'Descrição': ["--- Selecione ---"], 
+        'Projeto': ["--- Selecione ---"], 
+        'Valor': [0.0], 
+        'Observação': [""]
+    })
+
 
 # Carrega os dados
 usuarios_df, atividades_df = carregar_dados()
@@ -1014,14 +1031,14 @@ else:
                     gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
                     # Adiciona um placeholder para evitar erro se a lista estiver vazia
                     if not gerentes_remover_list:
-                         gerentes_remover_list = ["Nenhum Gerente Configurado"]
-                         
+                             gerentes_remover_list = ["Nenhum Gerente Configurado"]
+                             
                     gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area", disabled=("Nenhum Gerente Configurado" in gerentes_remover_list)) 
                     
                     
                     subordinados_do_gerente = []
                     if gerente_remover != "Nenhum Gerente Configurado":
-                         subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                             subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
                     
                     if not subordinados_do_gerente:
                         subordinados_do_gerente = ["Nenhuma Pessoa da Equipe"]
@@ -1291,80 +1308,90 @@ else:
                 f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
             )
             
-        # Quantos lançamentos
-        qtd_lancamentos = st.number_input(
-            "Quantos lançamentos deseja adicionar?",
-            min_value=1,
-            max_value=20,
-            value=st.session_state.get("lanc_qtd", 1), # Mantém o valor
-            step=1,
-            key="lanc_qtd"
+        # --- INÍCIO DA ALTERAÇÃO PARA TABELA VERTICAL ---
+        
+        
+        st.subheader("📝 Lançamentos")
+
+        # Define o DataFrame inicial (pelo menos 1 linha)
+        if st.session_state['df_lancamentos'].empty:
+             st.session_state['df_lancamentos'] = pd.DataFrame({
+                'Descrição': ["--- Selecione ---"], 
+                'Projeto': ["--- Selecione ---"], 
+                'Valor': [0.0], 
+                'Observação': [""]
+             })
+             
+        # Renomeia o campo 'Valor' para 'Horas' ou 'Porcentagem' para o editor
+        coluna_valor_nome = "Porcentagem (%)" if tipo_lancamento == "Porcentagem" else "Horas (h)"
+        df_editor = st.session_state['df_lancamentos'].rename(columns={'Valor': coluna_valor_nome})
+
+
+        # Configuração das colunas para o data_editor
+        column_config = {
+            "Descrição": st.column_config.SelectboxColumn(
+                "Descrição",
+                options=DESCRICOES,
+                required=True,
+                default="--- Selecione ---"
+            ),
+            "Projeto": st.column_config.SelectboxColumn(
+                "Projeto",
+                options=PROJETOS,
+                required=True,
+                default="--- Selecione ---"
+            ),
+            coluna_valor_nome: st.column_config.NumberColumn(
+                coluna_valor_nome,
+                min_value=0.0,
+                max_value=100.0 if tipo_lancamento == "Porcentagem" else 200.0,
+                step=0.5,
+                format="%.1f"
+            ),
+            "Observação": st.column_config.TextColumn(
+                "Observação",
+                help="Detalhes da atividade ou o metadado [HORA:X|OBS_REAL] para o modo Horas.",
+                width="large",
+                default=""
+            ),
+        }
+        
+        # O data_editor sobrescreve o estado de sessão em cada interação
+        edited_df = st.data_editor(
+            df_editor,
+            column_config=column_config,
+            num_rows="dynamic", # Permite adicionar e remover linhas
+            hide_index=True,
+            use_container_width=True
         )
         
-        st.markdown("---")
+        # Atualiza o estado de sessão com o DataFrame editado (renomeando a coluna de volta para 'Valor' internamente)
+        st.session_state['df_lancamentos'] = edited_df.rename(columns={coluna_valor_nome: 'Valor'})
 
-        # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
+        # Prepara a lista de lançamentos para a lógica de validação/salvamento (usando 'Valor' interno)
+        # Filtra linhas vazias ou com valor 0, exceto se for a linha de placeholder inicial
         lancamentos = []
-        for i in range(qtd_lancamentos):
-            st.markdown(f"**Lançamento {i+1}**")
+        for index, row in st.session_state['df_lancamentos'].iterrows():
+             if row['Valor'] > 0 and (row['Descrição'] != "--- Selecione ---" or row['Projeto'] != "--- Selecione ---"):
+                 lancamentos.append({
+                     "descricao": row['Descrição'],
+                     "projeto": row['Projeto'],
+                     "valor": row['Valor'],
+                     "observacao": row['Observação'] if pd.notna(row['Observação']) else ""
+                 })
 
-            col1, col2 = st.columns(2)
-            
-            descricao = col1.selectbox(
-                f"Descrição {i+1}",
-                DESCRICOES_SELECT,
-                key=f"desc_{i}"
-            )
-            projeto = col2.selectbox(
-                f"Projeto {i+1}",
-                PROJETOS_SELECT,
-                key=f"proj_{i}"
-            )
 
-            if tipo_lancamento == "Porcentagem":
-                valor = st.number_input(
-                    f"Porcentagem {i+1} (%)",
-                    min_value=0.0,
-                    max_value=100.0,
-                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
-                    step=1.0,
-                    key=f"valor_{i}"
-                )
-            else: # Horas
-                valor = st.number_input(
-                    f"Horas {i+1}",
-                    min_value=0.0,
-                    max_value=200.0,
-                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
-                    step=0.5,
-                    key=f"valor_{i}"
-                )
-
-            # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
-            observacao = st.text_area(f"Observação {i+1} (Opcional)", 
-                                       key=f"obs_{i}", 
-                                       value=st.session_state.get(f"obs_{i}", ""))
-            st.markdown("---")
-
-            # Armazena os dados atuais do estado de sessão
-            lancamentos.append({
-                "descricao": descricao,
-                "projeto": projeto,
-                "valor": valor,
-                "observacao": observacao
-            })
+        # --- FIM DA ALTERAÇÃO PARA TABELA VERTICAL ---
 
         # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (Atualização em tempo real) ---
         
         # 1. PROCESSAMENTO DOS DADOS PARA PREVIEW E VALIDAÇÃO
         preview_data = []
-        lancamentos_validos = []
+        lancamentos_validos = lancamentos # Agora 'lancamentos' já está filtrado no data_editor
         soma_nova = 0
         total_geral_horas = total_horas_existentes # Valor base
         
-        if lancamentos:
-            # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
-            lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
+        if lancamentos_validos: # Usar lancamentos_validos que contém apenas as linhas com Valor > 0
             
             if tipo_lancamento == "Horas":
                 # LÓGICA DE RECÁLCULO PROPORCIONAL
@@ -1379,7 +1406,7 @@ else:
                         
                         # CRÍTICO: Armazena o metadado de hora bruta E a observação real, ocultando a hora bruta.
                         obs_real = l["observacao"] if l["observacao"] else ""
-                        l["observacao"] = f"[HORA:{l['valor']}|{obs_real}]" 
+                        l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]" 
                         
                         preview_data.append({
                             "Descrição": l["descricao"],
@@ -1393,6 +1420,7 @@ else:
                 # LÓGICA DE SOMA SIMPLES (NÃO PROPORCIONAL)
                 for l in lancamentos_validos:
                     l["porcentagem_final"] = l["valor"] # No modo porcentagem, o valor é a porcentagem final
+                    l["observacao_final_db"] = l["observacao"] # Mantém a observação original
                     preview_data.append({
                         "Descrição": l["descricao"],
                         "Projeto": l["projeto"],
@@ -1409,7 +1437,7 @@ else:
             total_final = 100.0
             saldo_final = 0.0
         
-        st.subheader("📊 Pré-visualização dos lançamentos")
+        st.subheader("📊 Pré-visualização dos lançamentos (Novos Lançamentos)")
         
         if preview_data:
             df_preview = pd.DataFrame(preview_data)
@@ -1445,7 +1473,7 @@ else:
                         st.error("⚠️ O total projetado ultrapassa 100%. Ajuste os valores antes de salvar.")
 
         else:
-            st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
+            st.info("Adicione e preencha lançamentos na tabela acima para visualizar o gráfico e os totais.")
 
         # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
         if st.button("💾 Salvar Lançamentos", key="btn_save_multi_lanc"):
@@ -1487,7 +1515,8 @@ else:
                     id_antigo = h['id']
                     
                     # Recalcula a porcentagem proporcional
-                    nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100))
+                    # Aqui usamos a proporção para 100%, arredondando para INT como esperado pelo DB
+                    nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100)) 
                     
                     # A observação não precisa ser atualizada, apenas a porcentagem
                     if not atualizar_porcentagem_atividade(id_antigo, nova_porcentagem_recalculada):
@@ -1499,7 +1528,7 @@ else:
             for l in lancamentos_validos:
                 porcent_final = int(round(l["porcentagem_final"]))
                 # A observação já está formatada corretamente com o metadado no modo Horas
-                obs_final = l["observacao"] if tipo_lancamento == "Horas" else (l["observacao"] if l["observacao"] else '')
+                obs_final = l.get("observacao_final_db", l.get("observacao", ''))
                 
                 ok = salvar_atividade(
                     st.session_state["usuario"],
@@ -1519,14 +1548,16 @@ else:
                 # ==================================
                 # LIMPEZA DE CAMPOS APÓS SALVAR (CORRIGIDO)
                 # ==================================
-                # Limpa campos dinâmicos (lançamentos)
-                for i in range(qtd_lancamentos):
-                    for key_prefix in ["desc_", "proj_", "valor_", "obs_"]:
-                        key = f"{key_prefix}{i}"
-                        if key in st.session_state:
-                            del st.session_state[key]
-                            
+                # Limpa o DataFrame do data_editor
+                st.session_state['df_lancamentos'] = pd.DataFrame({
+                    'Descrição': ["--- Selecione ---"], 
+                    'Projeto': ["--- Selecione ---"], 
+                    'Valor': [0.0], 
+                    'Observação': [""]
+                })
+                
                 # CORREÇÃO: Remove a chave do widget de quantidade em vez de atribuir.
+                # A quantidade de lançamentos é gerenciada pelo num_rows="dynamic" agora, não precisamos mais disso
                 if "lanc_qtd" in st.session_state:
                     del st.session_state["lanc_qtd"]
                 
@@ -1940,11 +1971,13 @@ else:
                     df_import['porcentagem'] = pd.to_numeric(df_import['porcentagem'], errors='coerce')
                     
                     
+                    
                     df_import.dropna(subset=['data', 'usuario', 'porcentagem'], inplace=True)
                     df_import.reset_index(drop=True, inplace=True) 
 
                     df_import['mes'] = df_import['data'].dt.month.astype(int)
                     df_import['ano'] = df_import['data'].dt.year.astype(int)
+                    
                     
                     
                     df_import['porcentagem'] = (df_import['porcentagem'] * 100).round().astype(int)
