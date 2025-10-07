@@ -463,7 +463,7 @@ def bulk_insert_atividades(df_to_insert):
 
     # Ajusta a query para incluir o novo campo 'status'
     query = """
-        INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status)
+        INSERT INTO actividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
    
@@ -1250,69 +1250,68 @@ else:
         st.markdown("---")
 
         # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
-        with st.form("form_multiplas_atividades"):
-            
-            st.subheader("Detalhes dos lançamentos")
-            
-            # GERAÇÃO DOS INPUTS E ARMAZENAMENTO EM LISTA
-            lancamentos = []
-            for i in range(qtd_lancamentos):
-                st.markdown(f"**Lançamento {i+1}**")
+        # Removido o st.form aqui para permitir o re-render instantâneo dos inputs
+        
+        st.subheader("Detalhes dos lançamentos")
+        
+        # GERAÇÃO DOS INPUTS E ARMAZENAMENTO EM LISTA
+        lancamentos = []
+        for i in range(qtd_lancamentos):
+            st.markdown(f"**Lançamento {i+1}**")
 
-                col1, col2 = st.columns(2)
-             
-                descricao = col1.selectbox(
-                    f"Descrição {i+1}",
-                    DESCRICOES_SELECT,
-                    key=f"desc_{i}"
+            col1, col2 = st.columns(2)
+         
+            descricao = col1.selectbox(
+                f"Descrição {i+1}",
+                DESCRICOES_SELECT,
+                key=f"desc_{i}"
+            )
+            projeto = col2.selectbox(
+                f"Projeto {i+1}",
+
+                PROJETOS_SELECT,
+                key=f"proj_{i}"
+            )
+
+            if tipo_lancamento == "Porcentagem":
+                valor = st.number_input(
+                    f"Porcentagem {i+1} (%)",
+
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
+                    step=1.0,
+                  
+                    key=f"valor_{i}"
                 )
-                projeto = col2.selectbox(
-                    f"Projeto {i+1}",
-   
-                    PROJETOS_SELECT,
-                    key=f"proj_{i}"
+            else: # Horas
+                valor = st.number_input(
+                    f"Horas {i+1}",
+                    min_value=0.0,
+           
+                    max_value=200.0,
+                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
+                    step=0.5,
+                    key=f"valor_{i}"
                 )
 
-                if tipo_lancamento == "Porcentagem":
-                    valor = st.number_input(
-                        f"Porcentagem {i+1} (%)",
-    
-                        min_value=0.0,
-                        max_value=100.0,
-                        value=0.0,
-                        step=1.0,
-                      
-                        key=f"valor_{i}"
-                    )
-                else: # Horas
-                    valor = st.number_input(
-                        f"Horas {i+1}",
-                        min_value=0.0,
-               
-                        max_value=200.0,
-                        value=0.0,
-                        step=0.5,
-                        key=f"valor_{i}"
-                    )
+            observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}", value=st.session_state.get(f"obs_{i}", ""))
+            st.markdown("---")
 
-                observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}")
-                st.markdown("---")
+            # Armazena os dados atuais do estado de sessão
+            lancamentos.append({
+                "descricao": descricao,
+                "projeto": projeto,
+                "valor": valor,
+                "observacao": observacao
+  
+            })
 
-                lancamentos.append({
-                    "descricao": descricao,
-                    "projeto": projeto,
-                    "valor": valor,
-                    "observacao": observacao
-      
-                })
-
-            # BOTÃO DE SUBMISSÃO DO FORMULÁRIO
-            submitted = st.form_submit_button("💾 Salvar Lançamentos")
-
-        # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (FORA DO FORM PARA RERUN AUTOMÁTICO) ---
+        # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (Atualização em tempo real) ---
         
         # 1. PROCESSAMENTO DOS DADOS PARA PREVIEW E VALIDAÇÃO
         preview_data = []
+        lancamentos_validos = []
         if lancamentos:
             # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
             lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
@@ -1381,8 +1380,8 @@ else:
         else:
             st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
 
-        # --- LÓGICA DE SALVAMENTO (EXECUTADA APÓS SUBMIT) ---
-        if submitted:
+        # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
+        if st.button("💾 Salvar Lançamentos", key="btn_save_multi_lanc"):
             if mes_num is None:
                 st.error("Selecione um mês válido.")
                 st.stop()
@@ -1429,6 +1428,29 @@ else:
                 total_pos = calcular_porcentagem_existente(
                     st.session_state["usuario"], mes_num, ano_select
                 )
+                
+                # ==================================
+                # AJUSTE: Limpa os campos após salvar
+                # ==================================
+                # 1. Limpa campos dinâmicos (lançamentos)
+                for i in range(qtd_lancamentos):
+                    if f"desc_{i}" in st.session_state:
+                        del st.session_state[f"desc_{i}"]
+                    if f"proj_{i}" in st.session_state:
+                        del st.session_state[f"proj_{i}"]
+                    if f"valor_{i}" in st.session_state:
+                        del st.session_state[f"valor_{i}"]
+                    if f"obs_{i}" in st.session_state:
+                        del st.session_state[f"obs_{i}"]
+                        
+                # 2. Limpa campos estáticos (Qtd de Lançamentos, Tipo)
+                # Mantemos mes/ano para que o usuário possa continuar no mesmo contexto
+                if "lanc_qtd" in st.session_state:
+                     del st.session_state["lanc_qtd"]
+                if "lanc_tipo" in st.session_state:
+                     del st.session_state["lanc_tipo"]
+
+
                 if total_pos == 100:
                     st.balloons()
                 st.success(
