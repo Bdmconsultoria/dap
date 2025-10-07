@@ -550,7 +550,7 @@ def limpar_nomes_usuarios_db():
         conn.close()
 
 # ==============================
-# 4.1. FUNÇÕES FALTANTES PARA ABA 'MINHAS ATIVIDADES'
+# 4.1. FUNÇÕES FALTANTES PARA ABA 'MINHAS ATIVIDADES' (ADICIONADAS)
 # ==============================
 
 def carregar_atividades_usuario(usuario, mes, ano):
@@ -1282,16 +1282,16 @@ else:
                         key=f"hora_{i}"
                     )
 
-                    observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}")
-                    st.markdown("---")
+                observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}")
+                st.markdown("---")
 
-                    lancamentos.append({
-                        "descricao": descricao,
-                        "projeto": projeto,
-                        "valor": valor,
-                        "observacao": observacao
-          
-                    })
+                lancamentos.append({
+                    "descricao": descricao,
+                    "projeto": projeto,
+                    "valor": valor,
+                    "observacao": observacao
+      
+                })
 
             # Pré-visualização e cálculo proporcional
             st.subheader("📊 Pré-visualização dos lançamentos")
@@ -1368,58 +1368,68 @@ else:
                         st.stop()
 
  
-                # Conversão horas -> porcentagem proporcional
+                # --- LÓGICA DE CONVERSÃO E VALIDAÇÃO CORRIGIDA ---
+                porcentagens_a_salvar = []
                 if tipo_lancamento == "Horas":
                     total_horas = sum(l["valor"] for l in lancamentos)
                     if total_horas == 0:
                         st.error("O total de horas deve ser maior que zero.")
                         st.stop()
+                        
+                    # 1. Calcule a porcentagem proporcional e armazene-a
                     for l in lancamentos:
-                        l["porcentagem"] = round((l["valor"] / total_horas) * 100, 2)
+                        porcent = round((l["valor"] / total_horas) * 100, 2)
+                        porcentagens_a_salvar.append(porcent)
+                        l["porcentagem_final"] = porcent # Armazena para o cálculo final
+                        
+                    total_porcentagem_nova = sum(porcentagens_a_salvar)
                 else:
+                    # 1. Simplesmente pegue o valor percentual e armazene-o
                     for l in lancamentos:
-   
-                        l["porcentagem"] = l["valor"]
+                        porcentagens_a_salvar.append(l["valor"])
+                        l["porcentagem_final"] = l["valor"] # Armazena para o cálculo final
 
+                    total_porcentagem_nova = sum(porcentagens_a_salvar)
+
+
+                # 2. CALCULO FINAL DE VALIDAÇÃO (SEMPRE USANDO PORCENTAGEM)
                 total_existente = calcular_porcentagem_existente(
                     st.session_state["usuario"], mes_num, ano_select
                 )
-                total_novo = total_existente + sum(l["porcentagem"] for l in lancamentos)
-
-                if total_novo > 100.0 + 0.001:
+                total_final = total_existente + total_porcentagem_nova
+                
+                # 3. VALIDAÇÃO
+                if total_final > 100.0 + 0.001:
                     st.error(
                         f"⚠️ O total de alocação ({total_existente:.1f}% existente + "
-                        f"{sum(l['porcentagem'] for l in lancamentos):.1f}% novo) "
+                        f"{total_porcentagem_nova:.1f}% novo) "
                         f"excede o limite de 100% para {mes_select}/{ano_select}."
-    
                     )
                     st.stop()
 
+                # 4. SALVAMENTO (Utiliza 'porcentagem_final' criada acima)
                 sucesso = True
                 for l in lancamentos:
                     obs_final = l["observacao"] if l["observacao"] else ''
                     ok = salvar_atividade(
-   
                         st.session_state["usuario"],
                         mes_num,
                         ano_select,
                         l["descricao"],
                         l["projeto"],
-   
-                        int(round(l["porcentagem"])),
+                        # Usa o valor final calculado (que já é proporcional no modo Horas)
+                        int(round(l["porcentagem_final"])), 
                         obs_final
                     )
                     if not ok:
                         sucesso = False
 
-       
                 if sucesso:
                     carregar_dados.clear()
                     total_pos = calcular_porcentagem_existente(
                         st.session_state["usuario"], mes_num, ano_select
                     )
                     if total_pos == 100:
-   
                         st.balloons()
                     st.success(
                         f"✅ {len(lancamentos)} lançamentos salvos com sucesso! \n"
