@@ -1,5 +1,5 @@
 # controle_atividades.py
-# Versão FINAL: st.rerun(), Logo (com correção de caminho "dap/"), Linguagem PJ.
+# Versão 5.0: st.rerun(), use_container_width, Logo (caminho "dap/"), Linguagem PJ.
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -11,7 +11,7 @@ import re
 import bcrypt
 import traceback
 import logging
-import os # Importação adicionada para uso em checagem de arquivo (opcional)
+import os 
 
 # ==============================
 # CONFIGURAÇÃO BÁSICA DE LOG
@@ -41,7 +41,7 @@ COR_FUNDO_APP = "#FFFFFF"
 COR_FUNDO_SIDEBAR = COR_PRIMARIA
 
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
-# CAMINHO CORRIGIDO: Assume que o logo está na pasta 'dap' na raiz do app
+# CAMINHO CORRIGIDO da última iteração, baseado no seu print "dap/logo_sinapsis.png"
 LOGO_PATH = "dap/logo_sinapsis.png" 
 
 # ==============================
@@ -473,12 +473,12 @@ def limpar_nomes_usuarios_db():
         return False, "Falha na conexão com o banco de dados."
     try:
         with conn.cursor() as cursor:
-            cursor.execute("""UPDATE atividades SET usuario = TRIM(usuario);""")
+            cursor.execute("""UPDATE actividades SET usuario = TRIM(usuario);""")
             atividades_afetadas = cursor.rowcount
             cursor.execute("""UPDATE hierarquia SET gerente = TRIM(gerente), subordinado = TRIM(subordinado);""")
             hierarquia_afetadas = cursor.rowcount
             cursor.execute("""
-                SELECT DISTINCT TRIM(usuario) FROM atividades
+                SELECT DISTINCT TRIM(usuario) FROM actividades
                 UNION
                 SELECT DISTINCT TRIM(gerente) FROM hierarquia
                 UNION
@@ -786,17 +786,17 @@ if st.session_state["usuario"] is None:
 else:
     # --- Sidebar Conteúdo ---
     
-    # 1. Logo da Sinapsis (com tratamento de erro)
+    # 1. Logo da Sinapsis (AGORA USANDO use_container_width=True)
     if os.path.exists(LOGO_PATH):
         try:
-            st.sidebar.image(LOGO_PATH, use_column_width=True)
+            # CORREÇÃO DA DEPRECIAÇÃO: use_column_width=True -> use_container_width=True
+            st.sidebar.image(LOGO_PATH, use_container_width=True)
         except Exception as e:
             st.sidebar.markdown(f"**{st.session_state['usuario']}**")
             st.sidebar.error(f"Erro ao carregar o logo. Verifique o arquivo.")
             logger.error(f"Falha ao carregar a imagem: {e}")
     else:
         st.sidebar.markdown(f"**Usuário Ativo:** **{st.session_state['usuario']}**")
-        #st.sidebar.warning(f"Logo não encontrado em `{LOGO_PATH}`") # Comentado para não poluir o app
     
     
     st.sidebar.markdown(f"**Usuário:** {st.session_state['usuario']}")
@@ -1413,4 +1413,3 @@ else:
                         else:
                             st.error("❌ Erro ao salvar a edição da atividade.")
                 st.markdown("---")
-
