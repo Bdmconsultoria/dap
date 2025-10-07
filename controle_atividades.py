@@ -1644,13 +1644,18 @@ else:
             # Extrai a hora bruta e a observação limpa
             hora_bruta, observacao_limpa = extrair_hora_bruta(a.get("observacao", ""))
             
-            # Formata o cabeçalho do expander (com o status)
+            # Formata o badge de status (string HTML)
             status_badge = f'<span class="status-badge status-{a["status"]}">{a["status"]}</span>'
             
-            with st.expander(
-                f"📌 {a['descricao']} | {a['projeto']} ({a['porcentagem']}%) | {status_badge}", 
-                expanded=False
-            ):
+            # Conteúdo do cabeçalho que queremos estilizar
+            cabecalho_expander = f"📌 {a['descricao']} | {a['projeto']} ({a['porcentagem']}%) | {status_badge}"
+
+            # CORREÇÃO: Usar expander sem título e renderizar o título dentro
+            with st.expander("", expanded=False):
+                
+                # Renderiza o cabeçalho dinâmico com o badge HTML
+                st.markdown(cabecalho_expander, unsafe_allow_html=True)
+                st.markdown("---") # Linha separadora logo abaixo do título
                 
                 if a['status'] == 'Aprovado':
                     st.warning("⚠️ Esta atividade foi **Aprovada** e não pode ser alterada (exceto exclusão, se permitido pelas regras de negócio).")
@@ -1728,7 +1733,6 @@ else:
         st.markdown("---")
         st.caption(f"🕓 Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
 
-        # ... (abas Gerenciar Time, Consolidado e Importar Dados continuam sem alterações)
         
     # ==============================
     # 7.5. Consolidado para Admin
