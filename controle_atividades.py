@@ -1650,18 +1650,19 @@ else:
             # Conteúdo do cabeçalho que queremos estilizar
             cabecalho_expander = f"📌 {a['descricao']} | {a['projeto']} ({a['porcentagem']}%) | {status_badge}"
 
-            # CORREÇÃO: Usar expander sem título e renderizar o título dentro
+            # CORREÇÃO HTML: Usar expander sem título e renderizar o título dentro
             with st.expander("", expanded=False):
                 
                 # Renderiza o cabeçalho dinâmico com o badge HTML
                 st.markdown(cabecalho_expander, unsafe_allow_html=True)
                 st.markdown("---") # Linha separadora logo abaixo do título
                 
-                if a['status'] == 'Aprovado':
-                    st.warning("⚠️ Esta atividade foi **Aprovada** e não pode ser alterada (exceto exclusão, se permitido pelas regras de negócio).")
+                # LÓGICA DE EDIÇÃO: Bloqueia se Aprovado ou Rejeitado
+                if a['status'] in ['Aprovado', 'Rejeitado']:
+                    st.warning(f"⚠️ Esta atividade está **{a['status']}** e não pode ser editada. Apenas atividades Pendentes são editáveis.")
                     disabled_edit = True
                 else:
-                    disabled_edit = False
+                    disabled_edit = False # Permite edição para status 'Pendente'
 
                 col1, col2, col3 = st.columns([2, 2, 1])
                 with col1:
@@ -1690,22 +1691,19 @@ else:
 
                 col_salvar, col_excluir = st.columns(2)
                 with col_salvar:
+                    # O botão Salvar só é habilitado se for Pendente
                     if st.button(f"💾 Salvar alterações ({idx})", disabled=disabled_edit):
                         
-                        # --- VERIFICAÇÃO DE 100% NA EDIÇÃO (E CRIAÇÃO DO METADADO) ---
+                        # --- VERIFICAÇÃO DE 100% NA EDIÇÃO (SIMPLES) ---
                         total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
-                        
-                        # Se a alocação tiver hora bruta, o modo de edição deve ser bloqueado, ou o usuário deve recalcular o mês.
-                        if (total_alocado != 100 and hora_bruta > 0) or (hora_bruta > 0 and (total_excluido + nova_porcentagem) != 100):
-                             st.error("⚠️ Não é possível editar a porcentagem de uma atividade lançada por **Horas** individualmente. Você deve usar a aba 'Lançar Atividade' para recalcular todo o mês, ou excluir a atividade.")
-                             st.stop()
                         
                         if (total_excluido + nova_porcentagem) > 100.0 + 0.001:
                             st.error(f"⚠️ A edição ultrapassa 100% de alocação para {mes_select}/{ano_select} ({total_excluido + nova_porcentagem:.1f}%). Ajuste o valor.")
                             st.stop()
                         
-                        # Recria o metadado se a hora bruta existir (apenas para persistir)
+                        # Recria o metadado se a hora bruta existir (apenas para persistir a hora bruta)
                         if hora_bruta > 0:
+                            # A edição aqui QUEBRA o recálculo proporcional do mês, mas preserva a hora bruta original.
                             observacao_para_salvar = f"[HORA:{hora_bruta}|{nova_observacao_input}]"
                         else:
                             observacao_para_salvar = nova_observacao_input
@@ -1969,4 +1967,5 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
 
