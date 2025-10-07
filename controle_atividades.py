@@ -1969,3 +1969,4 @@ else:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
 
 
+
