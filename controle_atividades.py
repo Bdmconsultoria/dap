@@ -1967,3 +1967,5 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
+
