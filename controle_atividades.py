@@ -471,7 +471,7 @@ def limpar_nomes_usuarios_db():
     try:
         with conn.cursor() as cursor:
             # 1. Atualiza a tabela ATIVIDADES e HIERARQUIA para remover espaços nas chaves
-            cursor.execute("""UPDATE atividades SET usuario = TRIM(usuario);""")
+            cursor.execute("""UPDATE actividades SET usuario = TRIM(usuario);""")
             atividades_afetadas = cursor.rowcount
             
             cursor.execute("""UPDATE hierarquia SET gerente = TRIM(gerente), subordinado = TRIM(subordinado);""")
@@ -479,7 +479,7 @@ def limpar_nomes_usuarios_db():
 
             # 2. Coletar todos os nomes de usuários únicos e limpos
             cursor.execute("""
-                SELECT DISTINCT TRIM(usuario) FROM atividades
+                SELECT DISTINCT TRIM(usuario) FROM actividades
                 UNION
                 SELECT DISTINCT TRIM(gerente) FROM hierarquia
                 UNION
@@ -1323,7 +1323,10 @@ else:
                     key=f"valor_{i}"
                 )
 
-            observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}", value=st.session_state.get(f"obs_{i}", ""))
+            # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
+            observacao = st.text_area(f"Observação {i+1} (Opcional)", 
+                                      key=f"obs_{i}", 
+                                      value=st.session_state.get(f"obs_{i}", ""))
             st.markdown("---")
 
             # Armazena os dados atuais do estado de sessão
@@ -1507,7 +1510,6 @@ else:
                             del st.session_state[key]
                             
                 # CORREÇÃO: Remove a chave do widget de quantidade em vez de atribuir.
-                # Isso resolve o StreamlitAPIException.
                 if "lanc_qtd" in st.session_state:
                     del st.session_state["lanc_qtd"]
                 
@@ -1963,3 +1965,4 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
