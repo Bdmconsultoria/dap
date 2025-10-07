@@ -1247,7 +1247,8 @@ else:
         for a in atividades_ativas:
              hora, _ = extrair_hora_bruta(a.get('observacao', ''))
              if hora > 0:
-                 horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original': a['observacao']})
+                 # Armazena a observação original COMPLETA para re-encapsulamento
+                 horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
                  
         total_horas_existentes = sum(h['hora'] for h in horas_brutas_ativas)
 
@@ -1356,7 +1357,7 @@ else:
                         porcent = (l["valor"] / total_geral_horas) * 100
                         l["porcentagem_final"] = round(porcent, 2)
                         
-                        # 🆕 CRÍTICO: Armazena o metadado de hora bruta E a observação real.
+                        # CRÍTICO: Armazena o metadado de hora bruta E a observação real, ocultando a hora bruta.
                         obs_real = l["observacao"] if l["observacao"] else ""
                         l["observacao"] = f"[HORA:{l['valor']}|{obs_real}]" 
                         
@@ -1455,7 +1456,7 @@ else:
                  st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
                  st.stop()
 
-            # 🆕 Lógica de Recálculo e Update (Apenas para o modo HORAS)
+            # Lógica de Recálculo e Update (Apenas para o modo HORAS)
             recalcular_e_atualizar = (tipo_lancamento == "Horas" and total_geral_horas > 0)
             
             if recalcular_e_atualizar:
@@ -1463,13 +1464,12 @@ else:
                 # 1. ATUALIZA AS ATIVIDADES EXISTENTES NO DB
                 for h in horas_brutas_ativas:
                     hora_antiga = h['hora']
-                    obs_original = h['obs_original']
                     id_antigo = h['id']
                     
                     # Recalcula a porcentagem proporcional
                     nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100))
                     
-                    # A observação precisa ser atualizada para preservar o metadado
+                    # A observação não precisa ser atualizada, apenas a porcentagem
                     if not atualizar_porcentagem_atividade(id_antigo, nova_porcentagem_recalculada):
                         st.error(f"❌ Erro crítico ao recalcular a atividade ID {id_antigo}.")
                         st.stop()
@@ -1497,16 +1497,21 @@ else:
                 carregar_dados.clear()
                 
                 # ==================================
-                # LIMPEZA DE CAMPOS APÓS SALVAR
+                # LIMPEZA DE CAMPOS APÓS SALVAR (CORRIGIDO)
                 # ==================================
+                # Limpa campos dinâmicos (lançamentos)
                 for i in range(qtd_lancamentos):
                     for key_prefix in ["desc_", "proj_", "valor_", "obs_"]:
                         key = f"{key_prefix}{i}"
                         if key in st.session_state:
                             del st.session_state[key]
                             
-                # Redefine a quantidade para 1, mantendo o tipo e a data
-                st.session_state["lanc_qtd"] = 1
+                # CORREÇÃO: Remove a chave do widget de quantidade em vez de atribuir.
+                # Isso resolve o StreamlitAPIException.
+                if "lanc_qtd" in st.session_state:
+                    del st.session_state["lanc_qtd"]
+                
+                # O estado 'lanc_tipo' é mantido para que o usuário continue no modo Horas/Porcentagem.
 
                 if tipo_lancamento == "Porcentagem" and total_final == 100:
                     st.balloons()
@@ -1605,7 +1610,7 @@ else:
 
         # Botão de exportar para Excel
         df_export = pd.DataFrame(atividades)
-        # 🆕 Limpa as observações do metadado antes de exportar
+        # Limpa as observações do metadado antes de exportar
         df_export['observacao'] = df_export['observacao'].apply(lambda x: extrair_hora_bruta(x)[1])
         buffer = io.BytesIO()
         df_export.to_excel(buffer, index=False)
@@ -1634,7 +1639,7 @@ else:
         st.subheader("✏️ Editar minhas atividades")
         for idx, a in enumerate(atividades):
             
-            # 🆕 Extrai a hora bruta e a observação limpa
+            # Extrai a hora bruta e a observação limpa
             hora_bruta, observacao_limpa = extrair_hora_bruta(a.get("observacao", ""))
             
             # Formata o cabeçalho do expander (com o status)
@@ -1668,7 +1673,7 @@ else:
                         disabled=disabled_edit
                     )
 
-                # 🆕 Exibe a observação limpa, o metadado só existe no DB
+                # Exibe a observação limpa, o metadado só existe no DB
                 nova_observacao_input = st.text_area(
                     "Observação (opcional)",
                     observacao_limpa, # Mostra apenas a observação limpa
@@ -1683,8 +1688,7 @@ else:
                         # --- VERIFICAÇÃO DE 100% NA EDIÇÃO (E CRIAÇÃO DO METADADO) ---
                         total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
                         
-                        # 🆕 Se a alocação tiver hora bruta, o modo de edição deve ser bloqueado, ou o usuário deve recalcular o mês.
-                        # Vou permitir a edição APENAS se a alocação total estiver em 100%, para evitar quebras.
+                        # Se a alocação tiver hora bruta, o modo de edição deve ser bloqueado, ou o usuário deve recalcular o mês.
                         if (total_alocado != 100 and hora_bruta > 0) or (hora_bruta > 0 and (total_excluido + nova_porcentagem) != 100):
                              st.error("⚠️ Não é possível editar a porcentagem de uma atividade lançada por **Horas** individualmente. Você deve usar a aba 'Lançar Atividade' para recalcular todo o mês, ou excluir a atividade.")
                              st.stop()
@@ -1773,7 +1777,7 @@ else:
                 
                 st.subheader("Tabela de Dados Detalhada")
                 
-                # 🆕 Limpa as observações do metadado antes de exibir
+                # Limpa as observações do metadado antes de exibir
                 df_consolidado['observacao'] = df_consolidado['observacao'].apply(lambda x: extrair_hora_bruta(x)[1])
                 st.dataframe(df_consolidado.drop(columns=['data_mes']), use_container_width=True)
 
