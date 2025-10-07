@@ -752,15 +752,8 @@ if 'edit_id' not in st.session_state:
     st.session_state['edit_id'] = None
 if 'show_change_password' not in st.session_state:
     st.session_state['show_change_password'] = False
-# Novo estado de sessão para o DataFrame de lançamentos (necessário para o data_editor)
-if 'df_lancamentos' not in st.session_state:
-    st.session_state['df_lancamentos'] = pd.DataFrame({
-        'Descrição': ["--- Selecione ---"], 
-        'Projeto': ["--- Selecione ---"], 
-        'Valor': [0.0], 
-        'Observação': [""]
-    })
-
+# O DataFrame de lançamento em massa (df_lancamentos) não é mais necessário
+# para o layout de blocos. Apenas a quantidade de lançamentos é importante.
 
 # Carrega os dados
 usuarios_df, atividades_df = carregar_dados()
@@ -833,6 +826,14 @@ st.markdown(
             background-color: #ff9999;
             /* Vermelho Claro */
             color: #cc0000;
+        }}
+        
+        /* ESTILO PARA DIVISOR VERTICAL CLARO entre blocos de lançamento */
+        .vertical-block-separator {{
+            border-bottom: 2px solid #ddd; /* Linha sutil para separar blocos */
+            margin-top: 10px;
+            margin-bottom: 10px;
+            padding-top: 10px;
         }}
     </style>
     """,
@@ -1308,90 +1309,90 @@ else:
                 f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
             )
             
-        # --- INÍCIO DA ALTERAÇÃO PARA TABELA VERTICAL ---
-        
-        
-        st.subheader("📝 Lançamentos")
-
-        # Define o DataFrame inicial (pelo menos 1 linha)
-        if st.session_state['df_lancamentos'].empty:
-             st.session_state['df_lancamentos'] = pd.DataFrame({
-                'Descrição': ["--- Selecione ---"], 
-                'Projeto': ["--- Selecione ---"], 
-                'Valor': [0.0], 
-                'Observação': [""]
-             })
-             
-        # Renomeia o campo 'Valor' para 'Horas' ou 'Porcentagem' para o editor
-        coluna_valor_nome = "Porcentagem (%)" if tipo_lancamento == "Porcentagem" else "Horas (h)"
-        df_editor = st.session_state['df_lancamentos'].rename(columns={'Valor': coluna_valor_nome})
-
-
-        # Configuração das colunas para o data_editor
-        column_config = {
-            "Descrição": st.column_config.SelectboxColumn(
-                "Descrição",
-                options=DESCRICOES,
-                required=True,
-                default="--- Selecione ---"
-            ),
-            "Projeto": st.column_config.SelectboxColumn(
-                "Projeto",
-                options=PROJETOS,
-                required=True,
-                default="--- Selecione ---"
-            ),
-            coluna_valor_nome: st.column_config.NumberColumn(
-                coluna_valor_nome,
-                min_value=0.0,
-                max_value=100.0 if tipo_lancamento == "Porcentagem" else 200.0,
-                step=0.5,
-                format="%.1f"
-            ),
-            "Observação": st.column_config.TextColumn(
-                "Observação",
-                help="Detalhes da atividade ou o metadado [HORA:X|OBS_REAL] para o modo Horas.",
-                width="large",
-                default=""
-            ),
-        }
-        
-        # O data_editor sobrescreve o estado de sessão em cada interação
-        edited_df = st.data_editor(
-            df_editor,
-            column_config=column_config,
-            num_rows="dynamic", # Permite adicionar e remover linhas
-            hide_index=True,
-            use_container_width=True
+        # Quantos lançamentos
+        qtd_lancamentos = st.number_input(
+            "Quantos lançamentos deseja adicionar?",
+            min_value=1,
+            max_value=20,
+            value=st.session_state.get("lanc_qtd", 1), # Mantém o valor
+            step=1,
+            key="lanc_qtd"
         )
         
-        # Atualiza o estado de sessão com o DataFrame editado (renomeando a coluna de volta para 'Valor' internamente)
-        st.session_state['df_lancamentos'] = edited_df.rename(columns={coluna_valor_nome: 'Valor'})
+        st.markdown("---")
 
-        # Prepara a lista de lançamentos para a lógica de validação/salvamento (usando 'Valor' interno)
-        # Filtra linhas vazias ou com valor 0, exceto se for a linha de placeholder inicial
+        # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
         lancamentos = []
-        for index, row in st.session_state['df_lancamentos'].iterrows():
-             if row['Valor'] > 0 and (row['Descrição'] != "--- Selecione ---" or row['Projeto'] != "--- Selecione ---"):
-                 lancamentos.append({
-                     "descricao": row['Descrição'],
-                     "projeto": row['Projeto'],
-                     "valor": row['Valor'],
-                     "observacao": row['Observação'] if pd.notna(row['Observação']) else ""
-                 })
+        for i in range(qtd_lancamentos):
+            # Início do Bloco de Lançamento
+            st.markdown(f"### Lançamento {i+1}") # Título para o bloco
+            
+            # --- INÍCIO DA ALTERAÇÃO PARA BLOCOS VERTICAIS ---
+            # Campos um embaixo do outro, ocupando a largura total (sem colunas internas)
+            
+            descricao = st.selectbox(
+                f"Descrição",
+                DESCRICOES_SELECT,
+                key=f"desc_{i}",
+                label_visibility="visible"
+            )
+            projeto = st.selectbox(
+                f"Projeto",
+                PROJETOS_SELECT,
+                key=f"proj_{i}",
+                label_visibility="visible"
+            )
 
+            if tipo_lancamento == "Porcentagem":
+                valor = st.number_input(
+                    f"Porcentagem (%)",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
+                    step=1.0,
+                    key=f"valor_{i}",
+                    label_visibility="visible"
+                )
+            else: # Horas
+                valor = st.number_input(
+                    f"Horas",
+                    min_value=0.0,
+                    max_value=200.0,
+                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
+                    step=0.5,
+                    key=f"valor_{i}",
+                    label_visibility="visible"
+                )
 
-        # --- FIM DA ALTERAÇÃO PARA TABELA VERTICAL ---
+            # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
+            observacao = st.text_area(f"Observação (Opcional)", 
+                                       key=f"obs_{i}", 
+                                       value=st.session_state.get(f"obs_{i}", ""))
+            
+            # Divisor sutil entre os blocos
+            if i < qtd_lancamentos - 1:
+                st.markdown('<div class="vertical-block-separator"></div>', unsafe_allow_html=True)
+            
+            # --- FIM DA ALTERAÇÃO PARA BLOCOS VERTICAIS ---
+
+            # Armazena os dados atuais do estado de sessão
+            lancamentos.append({
+                "descricao": descricao,
+                "projeto": projeto,
+                "valor": valor,
+                "observacao": observacao
+            })
 
         # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (Atualização em tempo real) ---
         
         # 1. PROCESSAMENTO DOS DADOS PARA PREVIEW E VALIDAÇÃO
         preview_data = []
-        lancamentos_validos = lancamentos # Agora 'lancamentos' já está filtrado no data_editor
+        # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
+        lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
         soma_nova = 0
         total_geral_horas = total_horas_existentes # Valor base
         
-        if lancamentos_validos: # Usar lancamentos_validos que contém apenas as linhas com Valor > 0
+        if lancamentos_validos:
             
             if tipo_lancamento == "Horas":
                 # LÓGICA DE RECÁLCULO PROPORCIONAL
@@ -1437,7 +1438,7 @@ else:
             total_final = 100.0
             saldo_final = 0.0
         
-        st.subheader("📊 Pré-visualização dos lançamentos (Novos Lançamentos)")
+        st.subheader("📊 Pré-visualização dos lançamentos")
         
         if preview_data:
             df_preview = pd.DataFrame(preview_data)
@@ -1473,7 +1474,7 @@ else:
                         st.error("⚠️ O total projetado ultrapassa 100%. Ajuste os valores antes de salvar.")
 
         else:
-            st.info("Adicione e preencha lançamentos na tabela acima para visualizar o gráfico e os totais.")
+            st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
 
         # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
         if st.button("💾 Salvar Lançamentos", key="btn_save_multi_lanc"):
@@ -1515,8 +1516,7 @@ else:
                     id_antigo = h['id']
                     
                     # Recalcula a porcentagem proporcional
-                    # Aqui usamos a proporção para 100%, arredondando para INT como esperado pelo DB
-                    nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100)) 
+                    nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100))
                     
                     # A observação não precisa ser atualizada, apenas a porcentagem
                     if not atualizar_porcentagem_atividade(id_antigo, nova_porcentagem_recalculada):
@@ -1548,16 +1548,14 @@ else:
                 # ==================================
                 # LIMPEZA DE CAMPOS APÓS SALVAR (CORRIGIDO)
                 # ==================================
-                # Limpa o DataFrame do data_editor
-                st.session_state['df_lancamentos'] = pd.DataFrame({
-                    'Descrição': ["--- Selecione ---"], 
-                    'Projeto': ["--- Selecione ---"], 
-                    'Valor': [0.0], 
-                    'Observação': [""]
-                })
-                
+                # Limpa campos dinâmicos (lançamentos)
+                for i in range(qtd_lancamentos):
+                    for key_prefix in ["desc_", "proj_", "valor_", "obs_"]:
+                        key = f"{key_prefix}{i}"
+                        if key in st.session_state:
+                            del st.session_state[key]
+                            
                 # CORREÇÃO: Remove a chave do widget de quantidade em vez de atribuir.
-                # A quantidade de lançamentos é gerenciada pelo num_rows="dynamic" agora, não precisamos mais disso
                 if "lanc_qtd" in st.session_state:
                     del st.session_state["lanc_qtd"]
                 
@@ -1714,9 +1712,9 @@ else:
 
                 col1, col2, col3 = st.columns([2, 2, 1])
                 with col1:
-                    st.text_input("Descrição", a["descricao"], disabled=True, key=f"desc_{idx}")
+                    st.text_input("Descrição", a["descricao"], disabled=True, key=f"desc_minhas_{idx}")
                 with col2:
-                    st.text_input("Projeto", a["projeto"], disabled=True, key=f"proj_{idx}")
+                    st.text_input("Projeto", a["projeto"], disabled=True, key=f"proj_minhas_{idx}")
                 with col3:
                     # Novo valor de porcentagem a ser editado
                     nova_porcentagem = st.number_input(
@@ -1725,7 +1723,7 @@ else:
                         max_value=100,
                         value=int(a["porcentagem"]),
                         step=1,
-                        key=f"porc_{idx}",
+                        key=f"porc_minhas_{idx}",
                         disabled=disabled_edit
                     )
 
@@ -1733,14 +1731,14 @@ else:
                 nova_observacao_input = st.text_area(
                     "Observação (opcional)",
                     observacao_limpa, # Mostra apenas a observação limpa
-                    key=f"obs_{idx}",
+                    key=f"obs_minhas_{idx}",
                     disabled=disabled_edit
                 )
 
                 col_salvar, col_excluir = st.columns(2)
                 with col_salvar:
                     # O botão Salvar só é habilitado se for Pendente
-                    if st.button(f"💾 Salvar alterações ({idx})", disabled=disabled_edit):
+                    if st.button(f"💾 Salvar alterações ({idx})", key=f"btn_salvar_minhas_{idx}", disabled=disabled_edit):
                         
                         # --- VERIFICAÇÃO DE 100% NA EDIÇÃO (SIMPLES) ---
                         total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
@@ -1765,7 +1763,7 @@ else:
                         else:
                             st.error("❌ Erro ao atualizar atividade.")
                 with col_excluir:
-                    if st.button(f"🗑️ Excluir ({idx})"):
+                    if st.button(f"🗑️ Excluir ({idx})", key=f"btn_excluir_minhas_{idx}"):
                         ok = excluir_atividade(a["id"])
 
                         if ok:
