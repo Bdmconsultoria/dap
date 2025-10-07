@@ -1198,50 +1198,63 @@ else:
     elif aba == "Lançar Atividade":
         st.header("📝 Lançar Atividade (Mensal)")
 
-        with st.form("form_multiplas_atividades"):
-            col_mes, col_ano = st.columns(2)
-            mes_select = col_mes.selectbox(
-                "Mês",
-                MESES_SELECT,
-                index=list(MESES.values()).index(MESES[datetime.today().month]) + 1
-            )
-            ano_select = col_ano.selectbox("Ano", ANOS, index=ANOS.index(datetime.today().year))
+        # --- CONTROLES DE DATA E TIPO DE LANÇAMENTO (FORA DO FORM) ---
+        col_mes, col_ano = st.columns(2)
+        mes_select = col_mes.selectbox(
+            "Mês",
+            MESES_SELECT,
+            index=list(MESES.values()).index(MESES[datetime.today().month]) + 1,
+            key="lanc_mes_select"
+        )
+        ano_select = col_ano.selectbox(
+            "Ano", 
+            ANOS, 
+            index=ANOS.index(datetime.today().year),
+            key="lanc_ano_select"
+        )
 
-            mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
-            total_existente = 0
-            if mes_num:
-                total_existente = calcular_porcentagem_existente(
-                    st.session_state["usuario"], mes_num, ano_select
-                )
-            saldo_restante = max(0, 100 - total_existente)
+        mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
+        total_existente = 0
+        if mes_num:
+            total_existente = calcular_porcentagem_existente(
+                st.session_state["usuario"], mes_num, ano_select
+            )
+        saldo_restante = max(0, 100 - total_existente)
 
   
-            st.info(
-                f"📅 **Mês selecionado:** {mes_select}/{ano_select}  \n"
-                f"📊 **Total já alocado:** {total_existente:.1f}%  \n"
-                f"💡 **Saldo restante disponível:** {saldo_restante:.1f}%"
-            )
+        st.info(
+            f"📅 **Mês selecionado:** {mes_select}/{ano_select}  \n"
+            f"📊 **Total já alocado:** {total_existente:.1f}%  \n"
+            f"💡 **Saldo restante disponível:** {saldo_restante:.1f}%"
+        )
 
-            # Tipo de lançamento
-            tipo_lancamento = st.radio(
-                "Tipo de lançamento:",
-                ["Porcentagem", "Horas"],
-                horizontal=True
-            )
+        # Tipo de lançamento
+        tipo_lancamento = st.radio(
+            "Tipo de lançamento:",
+            ["Porcentagem", "Horas"],
+            horizontal=True,
+            key="lanc_tipo"
+        )
+        
+        # Quantos lançamentos
+        qtd_lancamentos = st.number_input(
+            "Quantos lançamentos deseja adicionar?",
+            min_value=1,
+            max_value=20,
+        
+            value=1,
+            step=1,
+            key="lanc_qtd"
+        )
+        
+        st.markdown("---")
 
-            # Quantos lançamentos
-            qtd_lancamentos = st.number_input(
-                "Quantos lançamentos deseja adicionar?",
-                min_value=1,
-                max_value=20,
+        # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
+        with st.form("form_multiplas_atividades"):
             
-                value=1,
-                step=1
-            )
-
-            st.markdown("---")
             st.subheader("Detalhes dos lançamentos")
-
+            
+            # GERAÇÃO DOS INPUTS E ARMAZENAMENTO EM LISTA
             lancamentos = []
             for i in range(qtd_lancamentos):
                 st.markdown(f"**Lançamento {i+1}**")
@@ -1264,22 +1277,22 @@ else:
                     valor = st.number_input(
                         f"Porcentagem {i+1} (%)",
     
-                        min_value=1.0,
+                        min_value=0.0,
                         max_value=100.0,
-                        value=100.0 if qtd_lancamentos == 1 else 0.0,
+                        value=0.0,
                         step=1.0,
                       
-                        key=f"porc_{i}"
+                        key=f"valor_{i}"
                     )
-                else:
+                else: # Horas
                     valor = st.number_input(
                         f"Horas {i+1}",
-                        min_value=0.1,
+                        min_value=0.0,
                
                         max_value=200.0,
-                        value=1.0,
+                        value=0.0,
                         step=0.5,
-                        key=f"hora_{i}"
+                        key=f"valor_{i}"
                     )
 
                 observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}")
@@ -1293,151 +1306,138 @@ else:
       
                 })
 
-            # Pré-visualização e cálculo proporcional
-            st.subheader("📊 Pré-visualização dos lançamentos")
-            preview_data = []
+            # BOTÃO DE SUBMISSÃO DO FORMULÁRIO
+            submitted = st.form_submit_button("💾 Salvar Lançamentos")
 
-            if lancamentos:
-                if tipo_lancamento == "Horas":
-                    total_horas = sum(l["valor"] for l in lancamentos)
-                   
-                    if total_horas > 0:
-                        for l in lancamentos:
-                            porcent = (l["valor"] / total_horas) * 100
-                            preview_data.append({
-                       
-                                "Descrição": l["descricao"],
-                                "Projeto": l["projeto"],
-                                "Porcentagem": porcent
-                            })
+        # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (FORA DO FORM PARA RERUN AUTOMÁTICO) ---
+        
+        # 1. PROCESSAMENTO DOS DADOS PARA PREVIEW E VALIDAÇÃO
+        preview_data = []
+        if lancamentos:
+            # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
+            lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
             
-                    else:
-                        for l in lancamentos:
-                            preview_data.append({
-                                "Descrição": l["descricao"],
-                                "Projeto": l["projeto"],
-           
-                                "Porcentagem": l["valor"]
-                            })
+            if tipo_lancamento == "Horas":
+                total_horas = sum(l["valor"] for l in lancamentos_validos)
+                
+                if total_horas > 0:
+                    for l in lancamentos_validos:
+                        porcent = (l["valor"] / total_horas) * 100
+                        # Armazena a porcentagem calculada para uso posterior
+                        l["porcentagem_final"] = round(porcent, 2)
+                        preview_data.append({
+                            "Descrição": l["descricao"],
+                            "Projeto": l["projeto"],
+                            "Porcentagem": porcent
+                        })
+                
+                soma_nova = sum(p["Porcentagem"] for p in preview_data)
+                
+            else: # Porcentagem
+                for l in lancamentos_validos:
+                    l["porcentagem_final"] = l["valor"] # No modo porcentagem, o valor é a porcentagem final
+                    preview_data.append({
+                        "Descrição": l["descricao"],
+                        "Projeto": l["projeto"],
+                        "Porcentagem": l["valor"]
+                    })
+                soma_nova = sum(l["valor"] for l in lancamentos_validos)
 
-            if preview_data:
-                df_preview = pd.DataFrame(preview_data)
-                soma_nova = df_preview["Porcentagem"].sum()
-                total_final = total_existente + soma_nova
-             
-                saldo_final = max(0, 100 - total_final)
+        else:
+            soma_nova = 0
+            
+        # 2. CÁLCULO DOS TOTAIS FINAIS (EM PORCENTAGEM)
+        total_final = total_existente + soma_nova
+        saldo_final = max(0, 100 - total_final)
+        
+        st.subheader("📊 Pré-visualização dos lançamentos")
+        
+        if preview_data:
+            df_preview = pd.DataFrame(preview_data)
 
-                col_graf, col_info = st.columns([2, 1])
-                with col_graf:
-                    fig_preview = px.pie(
-                        df_preview,
-                        names="Descrição",
+            col_graf, col_info = st.columns([2, 1])
+            with col_graf:
+                fig_preview = px.pie(
+                    df_preview,
+                    names="Descrição",
+                    values="Porcentagem",
+                    title="Distribuição proporcional dos lançamentos novos",
+                    hole=.4,
+                    color_discrete_sequence=SINAPSIS_PALETTE
+                )
          
-                        values="Porcentagem",
-                        title="Distribuição proporcional dos lançamentos novos",
-                        hole=.4,
-                        color_discrete_sequence=SINAPSIS_PALETTE
-                    )
-         
-                    fig_preview.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
-                    st.plotly_chart(fig_preview, use_container_width=True)
+                fig_preview.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
+                st.plotly_chart(fig_preview, use_container_width=True)
 
-                with col_info:
-                    st.markdown(
-                        f"**Total novo a ser lançado:** {soma_nova:.1f}%  \n"
-                   
-                        f"**Total atual + novo:** {total_final:.1f}%  \n"
-                        f"**Saldo restante após salvar:** {saldo_final:.1f}%"
-                    )
-                    if total_final > 100:
-                        st.error("⚠️ O total projetado ultrapassa 100%. Ajuste os valores antes de salvar.")
+            with col_info:
+                st.markdown(
+                    f"**Total novo a ser lançado:** {soma_nova:.1f}%  \n"
+                    f"**Total atual + novo:** {total_final:.1f}%  \n"
+                    f"**Saldo restante após salvar:** {saldo_final:.1f}%"
+                )
+                if total_final > 100:
+                    st.error("⚠️ O total projetado ultrapassa 100%. Ajuste os valores antes de salvar.")
 
-            else:
-                st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
+        else:
+            st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
 
-            # Botão final de salvar
-            if st.form_submit_button("💾 Salvar Lançamentos"):
-                if mes_num is None:
-                    st.error("Selecione um mês válido.")
-             
+        # --- LÓGICA DE SALVAMENTO (EXECUTADA APÓS SUBMIT) ---
+        if submitted:
+            if mes_num is None:
+                st.error("Selecione um mês válido.")
+                st.stop()
+
+            # Revalidação de campos e totais antes de salvar
+            if not lancamentos_validos:
+                 st.error("Nenhum lançamento válido (com valor > 0) para salvar.")
+                 st.stop()
+                 
+            for l in lancamentos_validos:
+                if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
+                    st.error("Todos os lançamentos válidos devem ter uma Descrição e um Projeto selecionados.")
                     st.stop()
+            
+            # Validação Final (re-checagem)
+            if total_final > 100.0 + 0.001:
+                st.error(
+                    f"⚠️ O total de alocação ({total_existente:.1f}% existente + "
+                    f"{soma_nova:.1f}% novo) "
+                    f"excede o limite de 100% para {mes_select}/{ano_select}. Por favor, ajuste os valores."
+                )
+                st.stop()
 
-                for l in lancamentos:
-                    if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
-                        st.error("Todos os lançamentos devem ter uma Descrição e um Projeto selecionados.")
-                        st.stop()
+            # Salvamento (utiliza o valor percentual calculado, armazenado em `l["porcentagem_final"]`)
+            sucesso = True
+            for l in lancamentos_validos:
+                obs_final = l["observacao"] if l["observacao"] else ''
+                ok = salvar_atividade(
+                    st.session_state["usuario"],
+                    mes_num,
+                    ano_select,
+                    l["descricao"],
+                    l["projeto"],
+                    # Arredonda a porcentagem para inteiro antes de salvar no DB (INTEGER)
+                    int(round(l["porcentagem_final"])), 
+                    obs_final
+                )
+                if not ok:
+                    sucesso = False
 
- 
-                # --- LÓGICA DE CONVERSÃO E VALIDAÇÃO CORRIGIDA ---
-                porcentagens_a_salvar = []
-                if tipo_lancamento == "Horas":
-                    total_horas = sum(l["valor"] for l in lancamentos)
-                    if total_horas == 0:
-                        st.error("O total de horas deve ser maior que zero.")
-                        st.stop()
-                        
-                    # 1. Calcule a porcentagem proporcional e armazene-a
-                    for l in lancamentos:
-                        porcent = round((l["valor"] / total_horas) * 100, 2)
-                        porcentagens_a_salvar.append(porcent)
-                        l["porcentagem_final"] = porcent # Armazena para o cálculo final
-                        
-                    total_porcentagem_nova = sum(porcentagens_a_salvar)
-                else:
-                    # 1. Simplesmente pegue o valor percentual e armazene-o
-                    for l in lancamentos:
-                        porcentagens_a_salvar.append(l["valor"])
-                        l["porcentagem_final"] = l["valor"] # Armazena para o cálculo final
-
-                    total_porcentagem_nova = sum(porcentagens_a_salvar)
-
-
-                # 2. CALCULO FINAL DE VALIDAÇÃO (SEMPRE USANDO PORCENTAGEM)
-                total_existente = calcular_porcentagem_existente(
+            if sucesso:
+                carregar_dados.clear()
+                # Recalcula o total final para a mensagem de sucesso
+                total_pos = calcular_porcentagem_existente(
                     st.session_state["usuario"], mes_num, ano_select
                 )
-                total_final = total_existente + total_porcentagem_nova
-                
-                # 3. VALIDAÇÃO
-                if total_final > 100.0 + 0.001:
-                    st.error(
-                        f"⚠️ O total de alocação ({total_existente:.1f}% existente + "
-                        f"{total_porcentagem_nova:.1f}% novo) "
-                        f"excede o limite de 100% para {mes_select}/{ano_select}."
-                    )
-                    st.stop()
-
-                # 4. SALVAMENTO (Utiliza 'porcentagem_final' criada acima)
-                sucesso = True
-                for l in lancamentos:
-                    obs_final = l["observacao"] if l["observacao"] else ''
-                    ok = salvar_atividade(
-                        st.session_state["usuario"],
-                        mes_num,
-                        ano_select,
-                        l["descricao"],
-                        l["projeto"],
-                        # Usa o valor final calculado (que já é proporcional no modo Horas)
-                        int(round(l["porcentagem_final"])), 
-                        obs_final
-                    )
-                    if not ok:
-                        sucesso = False
-
-                if sucesso:
-                    carregar_dados.clear()
-                    total_pos = calcular_porcentagem_existente(
-                        st.session_state["usuario"], mes_num, ano_select
-                    )
-                    if total_pos == 100:
-                        st.balloons()
-                    st.success(
-                        f"✅ {len(lancamentos)} lançamentos salvos com sucesso! \n"
-                        f"📊 Total alocado em {mes_select}/{ano_select}: {total_pos:.1f}%."
-                    )
-                    st.rerun()
-                else:
-                    st.error("❌ Ocorreu um erro ao salvar os lançamentos. Verifique os dados.")
+                if total_pos == 100:
+                    st.balloons()
+                st.success(
+                    f"✅ {len(lancamentos_validos)} lançamentos salvos com sucesso! \n"
+                    f"📊 Total alocado em {mes_select}/{ano_select}: {total_pos:.1f}%."
+                )
+                st.rerun()
+            else:
+                st.error("❌ Ocorreu um erro ao salvar os lançamentos. Verifique os dados.")
 
 
     # ==============================
@@ -1847,3 +1847,4 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
