@@ -17,7 +17,8 @@ COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
-# Paleta de cores customizada para Plotly (usada nos gráficos)
+# Paleta 
+# de cores customizada para Plotly (usada nos gráficos)
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
 # O logo foi removido para garantir a estabilidade do carregamento
@@ -46,7 +47,8 @@ def get_db_connection():
         conn = psycopg2.connect(**DB_PARAMS)
         return conn
     except Exception as e:
-        # Em produção, você pode descomentar esta linha para ver erros de conexão:
+        # Em produção, você pode 
+        # descomentar esta linha para ver erros de conexão:
         # st.error(f"❌ Erro ao conectar ao banco de dados: {e}")
         return None
 
@@ -59,12 +61,14 @@ def setup_db():
     conn = get_db_connection()
     if conn is None: return
     try:
+        
         with conn.cursor() as cursor:
             # Tabela USUARIOS
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS usuarios (
                     usuario VARCHAR(50) PRIMARY KEY,
                     senha VARCHAR(50) NOT NULL,
+   
                     admin BOOLEAN DEFAULT FALSE
                 );
             """)
@@ -73,21 +77,25 @@ def setup_db():
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS atividades (
                     id SERIAL PRIMARY KEY,
+                 
                     usuario VARCHAR(50) REFERENCES usuarios(usuario),
                     data DATE NOT NULL,
                     mes INTEGER NOT NULL,
                     ano INTEGER NOT NULL,
                     descricao VARCHAR(255) NOT NULL,
+  
                     projeto VARCHAR(255) NOT NULL,
                     porcentagem INTEGER NOT NULL,
                     observacao TEXT,
                     status VARCHAR(50) DEFAULT 'Pendente' 
+           
                 );
             """)
             
             # CORREÇÃO CRÍTICA: Adiciona a coluna STATUS se ela não existir
             try:
                 # 1. Verifica se a coluna 'status' existe na tabela 'atividades'
+           
                 cursor.execute("""
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name='atividades' AND column_name='status';
@@ -97,21 +105,25 @@ def setup_db():
                 # 2. Se não existir, executa o ALTER TABLE
                 if not exists:
                     cursor.execute("""
+    
                         ALTER TABLE atividades
                         ADD COLUMN status VARCHAR(50) DEFAULT 'Pendente';
                     """)
                     conn.commit()
+         
             except Exception as e:
                 # Loga o erro, mas não para o app
                 # st.error(f"Aviso de migração de tabela: {e}")
                 conn.rollback() 
             
             # NOVA TABELA: HIERARQUIA
+    
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS hierarquia (
                     gerente VARCHAR(50) REFERENCES usuarios(usuario),
                     subordinado VARCHAR(50) REFERENCES usuarios(usuario),
                     PRIMARY KEY (gerente, subordinado),
+ 
                     CHECK (gerente != subordinado)
                 );
             """)
@@ -135,6 +147,7 @@ def salvar_usuario(usuario, senha, admin=False):
             cursor.execute("""
                 INSERT INTO usuarios (usuario, senha, admin)
                 VALUES (%s, %s, %s)
+    
                 ON CONFLICT (usuario) DO NOTHING;
             """, (usuario, senha, admin))
             conn.commit()
@@ -169,6 +182,7 @@ def alterar_senha(usuario, nova_senha):
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
+   
                 UPDATE usuarios
                 SET senha = %s
                 WHERE usuario = %s;
@@ -194,12 +208,14 @@ def calcular_porcentagem_existente(usuario, mes, ano, excluido_id=None):
             query = """
                 SELECT COALESCE(SUM(porcentagem), 0)
                 FROM atividades
+          
                 WHERE usuario = %s AND mes = %s AND ano = %s
             """
             params = [usuario, mes, ano]
             
             if excluido_id is not None:
                 query += " AND id != %s"
+     
                 params.append(excluido_id)
             
             cursor.execute(query + ";", params)
@@ -208,6 +224,7 @@ def calcular_porcentagem_existente(usuario, mes, ano, excluido_id=None):
     except Exception as e:
         st.error(f"Erro ao calcular porcentagem existente: {e}")
         return 101 
+ 
     finally:
         if conn:
             conn.close()
@@ -219,11 +236,13 @@ def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observa
     try:
         with conn.cursor() as cursor:
             data_db = datetime(year=ano, month=mes, day=1).date()
+      
             
             if atividade_id is None:
                 # Inserir Nova Atividade (Status 'Pendente' por default)
                 query = """
                     INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao)
+        
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                 """
                 params = (usuario, data_db, mes, ano, descricao, projeto, porcentagem, observacao)
@@ -231,6 +250,7 @@ def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observa
                 # Atualizar Atividade Existente
                 query = """
                     UPDATE atividades
+     
                     SET data = %s, mes = %s, ano = %s, descricao = %s, projeto = %s, porcentagem = %s, observacao = %s
                     WHERE id = %s;
                 """
@@ -241,6 +261,7 @@ def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observa
             return True
     except Exception as e:
         st.error(f"Erro ao salvar/editar atividade: {e}")
+      
         return False
     finally:
         conn.close()
@@ -254,6 +275,7 @@ def apagar_atividade(atividade_id):
             cursor.execute("DELETE FROM atividades WHERE id = %s;", (atividade_id,))
             conn.commit()
             return True
+ 
     except Exception as e:
         st.error(f"Erro ao apagar atividade: {e}")
         return False
@@ -267,6 +289,7 @@ def atualizar_status_atividade(atividade_id, novo_status):
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
+     
                 UPDATE atividades
                 SET status = %s
                 WHERE id = %s;
@@ -285,6 +308,7 @@ def salvar_hierarquia(gerente, subordinado):
     """Associa um subordinado a um gerente."""
     conn = get_db_connection()
     if conn is None: return False
+  
     if gerente == subordinado: 
         st.error("Gerente e Subordinado não podem ser a mesma pessoa.")
         return False
@@ -294,6 +318,7 @@ def salvar_hierarquia(gerente, subordinado):
             cursor.execute("""
                 INSERT INTO hierarquia (gerente, subordinado)
                 VALUES (%s, %s)
+    
                 ON CONFLICT (gerente, subordinado) DO UPDATE 
                 SET gerente = EXCLUDED.gerente, subordinado = EXCLUDED.subordinado;
             """, (gerente, subordinado))
@@ -301,6 +326,7 @@ def salvar_hierarquia(gerente, subordinado):
             return True
     except Exception as e:
         st.error(f"Erro ao salvar hierarquia: {e}")
+  
         return False
     finally:
         conn.close()
@@ -313,6 +339,7 @@ def apagar_hierarquia(gerente, subordinado):
         with conn.cursor() as cursor:
             cursor.execute("""
                 DELETE FROM hierarquia
+         
                 WHERE gerente = %s AND subordinado = %s;
             """, (gerente, subordinado))
             conn.commit()
@@ -329,6 +356,7 @@ def carregar_hierarquia():
     conn = get_db_connection()
     if conn is None: return pd.DataFrame()
     try:
+ 
         hierarquia_df = pd.read_sql("SELECT gerente, subordinado FROM hierarquia ORDER BY gerente, subordinado;", conn)
         return hierarquia_df
     except Exception as e:
@@ -367,23 +395,27 @@ def carregar_dados():
         return usuarios_df, atividades_df
         
     except Exception as e:
+ 
         # Lógica de migração de status
         if 'column "status" does not exist' in str(e):
             # st.warning("⚠️ Tentativa de carregamento sem a coluna 'status' (migração em andamento).")
             
             try:
                 atividades_df = pd.read_sql(query_base, conn)
+       
                 if not atividades_df.empty:
                     atividades_df['data'] = pd.to_datetime(atividades_df['data'])
                     atividades_df['status'] = 'Pendente' 
                     st.session_state['db_migrating'] = True
                     st.rerun() 
+ 
                 
                 return usuarios_df, atividades_df 
             except Exception as e2:
                 st.error(f"Erro fatal ao carregar dados base: {e2}")
                 return pd.DataFrame(), pd.DataFrame()
         else:
+   
             st.error(f"Erro ao carregar dados: {e}")
             return pd.DataFrame(), pd.DataFrame()
             
@@ -391,7 +423,8 @@ def carregar_dados():
         conn.close()
 
 def bulk_insert_usuarios(user_list):
-    """Insere usuários inexistentes no banco de dados. Senha padrão: '123'."""
+    """Insere usuários inexistentes no banco de dados.
+    Senha padrão: '123'."""
     conn = get_db_connection()
     if conn is None:
         return 0, "❌ Falha na conexão com o banco de dados."
@@ -403,6 +436,7 @@ def bulk_insert_usuarios(user_list):
         ON CONFLICT (usuario) DO NOTHING
     """
     try:
+ 
         with conn.cursor() as cursor:
             psycopg2.extras.execute_batch(cursor, query, data_list)
             inserted_count = cursor.rowcount
@@ -421,7 +455,8 @@ def bulk_insert_atividades(df_to_insert):
     if conn is None:
         return 0, "❌ Falha na conexão com o banco de dados."
     
-    # O DataFrame deve ter as colunas na ordem correta, incluindo 'status'
+    # O DataFrame 
+    # deve ter as colunas na ordem correta, incluindo 'status'
     data_list = [tuple(row) for row in df_to_insert[[
         'usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao', 'status'
     ]].values]
@@ -431,7 +466,7 @@ def bulk_insert_atividades(df_to_insert):
         INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
-    
+   
     try:
         with conn.cursor() as cursor:
             psycopg2.extras.execute_batch(cursor, query, data_list)
@@ -455,6 +490,7 @@ def limpar_nomes_usuarios_db():
             # 1. Atualiza a tabela ATIVIDADES e HIERARQUIA para remover espaços nas chaves
             cursor.execute("""UPDATE atividades SET usuario = TRIM(usuario);""")
             atividades_afetadas = cursor.rowcount
+   
             
             cursor.execute("""UPDATE hierarquia SET gerente = TRIM(gerente), subordinado = TRIM(subordinado);""")
             hierarquia_afetadas = cursor.rowcount
@@ -462,11 +498,13 @@ def limpar_nomes_usuarios_db():
             # 2. Coletar todos os nomes de usuários únicos e limpos
             cursor.execute("""
                 SELECT DISTINCT TRIM(usuario) FROM atividades
+   
                 UNION
                 SELECT DISTINCT TRIM(gerente) FROM hierarquia
                 UNION
                 SELECT DISTINCT TRIM(subordinado) FROM hierarquia
                 UNION
+               
                 SELECT DISTINCT usuario FROM usuarios;
             """)
             usuarios_limpos = list(set([row[0] for row in cursor.fetchall()])) # Usar set para garantir unicidade
@@ -474,12 +512,14 @@ def limpar_nomes_usuarios_db():
             # 3. Preservar status admin
             cursor.execute("SELECT usuario, admin FROM usuarios;")
             status_admin_original = dict(cursor.fetchall())
+ 
             
             # 4. Limpar e Reinserir a tabela usuarios
             cursor.execute("TRUNCATE TABLE usuarios CASCADE;")
             
             # Reinserir todos os usuários limpos
             usuarios_para_reinserir = []
+            
             for user in usuarios_limpos:
                 # Tenta manter o status de admin, se não, assume False e senha '123'
                 is_admin = status_admin_original.get(user, False)
@@ -509,6 +549,52 @@ def limpar_nomes_usuarios_db():
     finally:
         conn.close()
 
+# ==============================
+# 4.1. FUNÇÕES FALTANTES PARA ABA 'MINHAS ATIVIDADES'
+# ==============================
+
+def carregar_atividades_usuario(usuario, mes, ano):
+    """Carrega atividades de um usuário específico para um mês/ano."""
+    conn = get_db_connection()
+    if conn is None: return []
+    try:
+        query = """
+            SELECT id, descricao, projeto, porcentagem, observacao, status
+            FROM atividades
+            WHERE usuario = %s AND mes = %s AND ano = %s
+            ORDER BY id DESC;
+        """
+        atividades_df = pd.read_sql(query, conn, params=(usuario, mes, ano))
+        # Converte para lista de dicionários para facilitar o uso no front-end
+        return atividades_df.to_dict('records')
+    except Exception as e:
+        # st.error(f"Erro ao carregar atividades do usuário: {e}")
+        return []
+    finally:
+        conn.close()
+
+def atualizar_atividade(atividade_id, nova_porcentagem, nova_observacao):
+    """Atualiza a porcentagem e observação de uma atividade específica."""
+    conn = get_db_connection()
+    if conn is None: return False
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE atividades
+                SET porcentagem = %s, observacao = %s
+                WHERE id = %s;
+            """, (nova_porcentagem, nova_observacao, atividade_id))
+            conn.commit()
+            return True
+    except Exception as e:
+        st.error(f"Erro ao atualizar atividade: {e}")
+        return False
+    finally:
+        conn.close()
+
+def excluir_atividade(atividade_id):
+    """Exclui uma atividade específica. É um alias para apagar_atividade."""
+    return apagar_atividade(atividade_id)
 
 # ==============================
 # 5. Dados fixos
@@ -525,14 +611,17 @@ DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Trei
               "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho",
               "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas",
               "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos",
+            
               "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados",
               "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento",
               "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho",
               "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados",
+   
               "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug",
               "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades",
               "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação",
               "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa",
+    
               "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes",
               "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material",
               "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho",
@@ -540,6 +629,7 @@ DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Trei
               "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH",
               "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento",
               "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna",
+    
               "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação",
               "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho",
               "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações",
@@ -607,6 +697,7 @@ def handle_delete(atividade_id):
     if apagar_atividade(atividade_id):
         carregar_dados.clear()
         st.success("Atividade apagada!")
+       
         st.rerun()
 
 def handle_status_update(atividade_id, novo_status):
@@ -646,9 +737,10 @@ hierarquia_df = carregar_hierarquia() # Agora o DataFrame de hierarquia está di
 st.markdown(
     f"""
     <style>
+  
         /* Define a cor primária (do config.toml) */
         :root {{
-            --primary-color: #19c0d1; 
+            --primary-color: #19c0d1;
             --secondary-background-color: {COR_FUNDO_SIDEBAR}; 
         }}
         
@@ -669,7 +761,7 @@ st.markdown(
         }}
         /* Seletor para a opção de rádio selecionada */
         [data-testid="stSidebar"] .st-b5.st-bd.st-be.st-bf.st-bg.st-bh.st-bi.st-bj.st-bk.st-bl.st-bm.st-bn.st-bo.st-bp.st-bq.st-br.st-bs.st-bt.st-bu.st-bv.st-bw.st-bx {{
-             background-color: {COR_SECUNDARIA} !important; 
+             background-color: {COR_SECUNDARIA} !important;
         }}
         
         /* Estilo para o corpo principal do APP */
@@ -691,15 +783,18 @@ st.markdown(
             display: inline-block;
         }}
         .status-Pendente {{
-            background-color: #ffcc99; /* Laranja Claro */
+            background-color: #ffcc99;
+            /* Laranja Claro */
             color: #cc6600;
         }}
         .status-Aprovado {{
-            background-color: #ccffcc; /* Verde Claro */
+            background-color: #ccffcc;
+            /* Verde Claro */
             color: #008000;
         }}
         .status-Rejeitado {{
-            background-color: #ff9999; /* Vermelho Claro */
+            background-color: #ff9999;
+            /* Vermelho Claro */
             color: #cc0000;
         }}
     </style>
@@ -719,6 +814,7 @@ if st.session_state["usuario"] is None:
         ok, admin = validar_login(usuario_limpo, senha)
         if ok:
             st.session_state["usuario"] = usuario_limpo
+          
             st.session_state["admin"] = admin
             st.rerun()
         else:
@@ -732,17 +828,20 @@ else:
         st.session_state['show_change_password'] = not st.session_state['show_change_password']
         st.rerun()
 
+  
     if st.session_state['show_change_password']:
         with st.sidebar.form("form_change_password"):
             nova_senha_1 = st.text_input("Nova Senha", type="password")
             nova_senha_2 = st.text_input("Confirme a Nova Senha", type="password")
             if st.form_submit_button("Atualizar Senha"):
                 if nova_senha_1 and nova_senha_1 == nova_senha_2:
+                   
                     if alterar_senha(st.session_state["usuario"], nova_senha_1):
                         st.sidebar.success("✅ Senha atualizada com sucesso! Por favor, faça login novamente.")
                         st.session_state["usuario"] = None
                         st.session_state["admin"] = False
                         st.session_state['show_change_password'] = False
+                  
                         st.rerun()
                     else:
                         st.sidebar.error("❌ Erro ao salvar a nova senha no banco de dados.")
@@ -783,12 +882,14 @@ else:
         st.subheader("Ferramenta de Manutenção (Limpar Espaços)")
         st.warning(
             "Esta ação **REMOVE ESPAÇOS em branco iniciais/finais** de TODOS os nomes de usuários no DB, "
+   
             "corrigindo problemas de login, chaves estrangeiras e hierarquia. **Todos os usuários terão a senha redefinida para '123'.**"
         )
         if st.button("Executar Limpeza de Nomes de Usuário (TRIM)", key="btn_limpeza_db"):
             with st.spinner("Executando limpeza no banco de dados..."):
                 sucesso, mensagem = limpar_nomes_usuarios_db()
             
+  
             carregar_dados.clear()
             
             if sucesso:
@@ -796,6 +897,7 @@ else:
             else:
                 st.error(mensagem)
             
+         
             st.rerun()
 
 
@@ -806,6 +908,7 @@ else:
             nova_senha = st.text_input("Senha", type="password")
             admin_check = st.checkbox("Admin")
             if st.form_submit_button("Adicionar"):
+       
                 if salvar_usuario(novo_usuario.strip(), nova_senha, admin_check):
                     st.success("Usuário adicionado!")
                     st.rerun()
@@ -813,6 +916,7 @@ else:
         # Tabela de Usuários
         usuarios_df_reloaded, _ = carregar_dados()
         st.subheader("Tabela de Usuários")
+       
         st.dataframe(usuarios_df_reloaded, use_container_width=True)
 
 
@@ -826,6 +930,7 @@ else:
         # Recarrega a hierarquia para o caso de ter sido alterada na mesma sessão
         hierarquia_df_reloaded = carregar_hierarquia()
         usuarios_list = usuarios_df['usuario'].tolist()
+     
         
         # O Gerente Padrão (usuário logado) ou Admin é o foco inicial
         usuario_logado = st.session_state["usuario"]
@@ -834,6 +939,7 @@ else:
         
         # 1. ADMIN pode gerenciar TODOS (configurar hierarquia de terceiros)
         if st.session_state["admin"]:
+          
             st.info("Você é Administrador e pode configurar e visualizar **qualquer** time.")
             
             # --- 1. CONFIGURAR HIERARQUIA (Apenas para ADMIN) ---
@@ -841,25 +947,30 @@ else:
             
             gerentes_disponiveis = sorted(usuarios_list)
             
+    
             with st.form("form_config_hierarquia"):
                 col_g1, col_g2 = st.columns(2)
                 
                 # Permite que o Admin escolha o Gerente
                 gerente_selecionado = col_g1.selectbox("Gerente", gerentes_disponiveis, key="sb_gerente")
+             
                 
                 # Subordinados disponíveis (todos, exceto o gerente selecionado)
                 subordinados_disponiveis = [u for u in usuarios_list if u != gerente_selecionado]
                 subordinado_selecionado = col_g2.selectbox(
                     "Novo Liderado", 
+        
                     ["--- Selecione ---"] + sorted(subordinados_disponiveis),
                     key="sb_subordinado"
                 )
                 
                 if st.form_submit_button("Adicionar/Atualizar Liderado"):
+              
                     if subordinado_selecionado != "--- Selecione ---":
                         if salvar_hierarquia(gerente_selecionado, subordinado_selecionado):
                             st.success(f"✅ {subordinado_selecionado} adicionado como liderado de **{gerente_selecionado}**.")
                             carregar_hierarquia.clear()
+ 
                             st.rerun()
                         else:
                             st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
@@ -869,30 +980,36 @@ else:
             st.markdown("---")
             
             # --- 1.1. Visualização e Remoção da Hierarquia (Apenas para ADMIN) ---
+  
             st.subheader("2. Visualizar e Remover Associações (Admin)")
             
             if hierarquia_df_reloaded.empty:
                 st.info("Nenhuma hierarquia configurada.")
             else:
                 st.dataframe(hierarquia_df_reloaded, use_container_width=True)
+             
                 
                 # Remoção de Hierarquia
                 with st.form("form_remover_hierarquia"):
                     st.markdown("##### Remover Associação")
                     
+                   
                     gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
                     gerente_remover = st.selectbox("Gerente (Remoção)", gerentes_remover_list, key="gerente_remover")
                     
                     # Filtra subordinados com base no gerente selecionado
                     subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+ 
                     subordinado_remover = st.selectbox("Liderado a Remover", sorted(subordinados_do_gerente), key="subordinado_remover")
 
                     if st.form_submit_button("Remover Associação"):
                         if apagar_hierarquia(gerente_remover, subordinado_remover):
+                           
                             st.success(f"❌ Associação entre {gerente_remover} e {subordinado_remover} removida.")
                             carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
                             st.rerun()
                         else:
+      
                             st.error("Erro ao remover hierarquia.")
         
         # 2. NÃO-ADMIN (Gerente): Só gerencia seu próprio time
@@ -900,7 +1017,8 @@ else:
         # --- 3. APROVAÇÃO E ACOMPANHAMENTO DE EQUIPES ---
         st.markdown("---")
         st.subheader("Análise e Aprovação de Atividades")
-        
+       
+ 
         gerentes_com_time = hierarquia_df_reloaded['gerente'].unique().tolist()
         
         if not gerentes_com_time or (is_manager and usuario_logado not in gerentes_com_time):
@@ -908,15 +1026,17 @@ else:
             st.stop()
         
         if st.session_state["admin"]:
-             # Admin seleciona qualquer time
+             # Admin 
+             # seleciona qualquer time
              gerente_a_analisar = st.selectbox(
                 "Selecione o Time para Análise", 
                 sorted(gerentes_com_time)
             )
         else:
              # Gerente só vê o próprio time
-             gerente_a_analisar = usuario_logado
-             st.markdown(f"**Time em Análise:** {gerente_a_analisar}")
+       
+            gerente_a_analisar = usuario_logado
+            st.markdown(f"**Time em Análise:** {gerente_a_analisar}")
 
         if gerente_a_analisar not in gerentes_com_time:
              st.error("Time inválido selecionado.")
@@ -935,6 +1055,7 @@ else:
         mes_vigente_num = hoje.month
         ano_vigente = hoje.year
         
+     
         meses_para_filtro = list(MESES.values())
         mes_vigente_str = MESES.get(mes_vigente_num, 'Mês Inválido')
         
@@ -944,6 +1065,7 @@ else:
             default_mes_idx = 0 
             
         mes_nome_analise = col_m1.selectbox("Mês de Referência", meses_para_filtro, index=default_mes_idx, key="sb_mes_analise")
+  
         ano_analise = col_m2.selectbox("Ano de Referência", ANOS, index=ANOS.index(ano_vigente), key="sb_ano_analise")
         
         mes_num_analise = next((k for k, v in MESES.items() if v == mes_nome_analise), None)
@@ -952,6 +1074,7 @@ else:
             st.error("Mês de análise inválido.")
             st.stop()
         
+     
         # DataFrame com atividades do time no mês/ano selecionado
         df_time_mes = atividades_df[
             (atividades_df['usuario'].isin(subordinados_list)) & 
@@ -960,6 +1083,7 @@ else:
         ]
         
         # Calcula o total alocado por usuário
+     
         df_resumo_alocacao = df_time_mes.groupby('usuario')['porcentagem'].sum().reset_index()
         df_resumo_alocacao.columns = ['Subordinado', 'Total Alocado (%)']
         
@@ -976,6 +1100,7 @@ else:
             color = ''
             if val < 50:
                 color = 'background-color: #ffcccc'
+    
             elif 50 <= val < 100:
                 color = 'background-color: #ffffcc'
             elif val == 100:
@@ -991,6 +1116,7 @@ else:
         
         st.markdown("---")
         
+        
         # --- 3. APROVAÇÃO DE LANÇAMENTOS DETALHADOS ---
         st.subheader(f"Lançamentos do Time **{gerente_a_analisar}** para Aprovação")
         
@@ -999,6 +1125,7 @@ else:
         
         status_filtro = col_fa1.selectbox("Filtrar por Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"], key="status_filtro_time")
         subordinado_filtro = col_fa2.selectbox("Filtrar por Liderado", ["Todos"] + sorted(subordinados_list), key="liderado_filtro_time")
+   
         
         df_aprovacao = df_time_mes.copy()
         
@@ -1008,6 +1135,7 @@ else:
         if subordinado_filtro != "Todos":
             df_aprovacao = df_aprovacao[df_aprovacao['usuario'] == subordinado_filtro]
             
+   
         if df_aprovacao.empty:
             st.info("Nenhuma atividade encontrada com os filtros selecionados.")
         else:
@@ -1015,53 +1143,299 @@ else:
             # Exibe as atividades para aprovação
             for idx, row in df_aprovacao.iterrows():
                 
+       
                 # Usa HTML para o badge de status
                 badge_status = f'<span class="status-badge status-{row["status"]}">{row["status"]}</span>'
 
                 col1_d, col2_d, col3_d, col4_d = st.columns([2, 1, 1, 1])
                 
                 with col1_d:
+       
                     st.markdown(f"**{row['usuario']}** | ID {row['id']} | {badge_status}", unsafe_allow_html=True)
                     st.markdown(f"**{MESES.get(row['mes'])}/{row['ano']}** | {row['descricao']} ({row['porcentagem']}%)")
                     st.markdown(f"*Projeto:* {row['projeto']}")
                     st.markdown(f"*Obs:* {row['observacao'] if row['observacao'] else '(Não informada)'}")
                     
+         
                 with col2_d:
                     # --- USANDO on_click CALLBACK ---
                     st.button(
                         "✅ Aprovar", 
+                     
                         key=f"apv_{row['id']}", 
                         on_click=handle_status_update, 
                         args=(row['id'], 'Aprovado')
                     )
-                            
+                          
+   
                 with col3_d:
                     # --- USANDO on_click CALLBACK ---
                     st.button(
                         "❌ Rejeitar", 
+          
                         key=f"rej_{row['id']}", 
                         on_click=handle_status_update, 
                         args=(row['id'], 'Rejeitado')
                     )
 
+               
                 with col4_d:
                     # --- USANDO on_click CALLBACK ---
                     st.button(
                         "🗑️ Excluir", 
                         key=f"del_a_{row['id']}",
+   
                         on_click=handle_delete,
                         args=(row['id'],)
                     )
                             
+       
                 st.markdown("---")
 
-# ==============================
-# 7.3. Lançar Atividade (Versão Final Completa com sugestões)
-# ==============================
-elif aba == "Lançar Atividade":
-    st.header("📝 Lançar Atividade (Mensal)")
+    # ==============================
+    # 7.3. Lançar Atividade (Versão Final Completa com sugestões)
+    # ==============================
+    elif aba == "Lançar Atividade":
+        st.header("📝 Lançar Atividade (Mensal)")
 
-    with st.form("form_multiplas_atividades"):
+        with st.form("form_multiplas_atividades"):
+            col_mes, col_ano = st.columns(2)
+            mes_select = col_mes.selectbox(
+                "Mês",
+                MESES_SELECT,
+                index=list(MESES.values()).index(MESES[datetime.today().month]) + 1
+            )
+            ano_select = col_ano.selectbox("Ano", ANOS, index=ANOS.index(datetime.today().year))
+
+            mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
+            total_existente = 0
+            if mes_num:
+                total_existente = calcular_porcentagem_existente(
+                    st.session_state["usuario"], mes_num, ano_select
+                )
+            saldo_restante = max(0, 100 - total_existente)
+
+  
+            st.info(
+                f"📅 **Mês selecionado:** {mes_select}/{ano_select}  \n"
+                f"📊 **Total já alocado:** {total_existente:.1f}%  \n"
+                f"💡 **Saldo restante disponível:** {saldo_restante:.1f}%"
+            )
+
+            # Tipo de lançamento
+            tipo_lancamento = st.radio(
+                "Tipo de lançamento:",
+                ["Porcentagem", "Horas"],
+                horizontal=True
+            )
+
+            # Quantos lançamentos
+            qtd_lancamentos = st.number_input(
+                "Quantos lançamentos deseja adicionar?",
+                min_value=1,
+                max_value=20,
+            
+                value=1,
+                step=1
+            )
+
+            st.markdown("---")
+            st.subheader("Detalhes dos lançamentos")
+
+            lancamentos = []
+            for i in range(qtd_lancamentos):
+                st.markdown(f"**Lançamento {i+1}**")
+
+                col1, col2 = st.columns(2)
+             
+                descricao = col1.selectbox(
+                    f"Descrição {i+1}",
+                    DESCRICOES_SELECT,
+                    key=f"desc_{i}"
+                )
+                projeto = col2.selectbox(
+                    f"Projeto {i+1}",
+   
+                    PROJETOS_SELECT,
+                    key=f"proj_{i}"
+                )
+
+                if tipo_lancamento == "Porcentagem":
+                    valor = st.number_input(
+                        f"Porcentagem {i+1} (%)",
+    
+                        min_value=1.0,
+                        max_value=100.0,
+                        value=100.0 if qtd_lancamentos == 1 else 0.0,
+                        step=1.0,
+                      
+                        key=f"porc_{i}"
+                    )
+                else:
+                    valor = st.number_input(
+                        f"Horas {i+1}",
+                        min_value=0.1,
+               
+                        max_value=200.0,
+                        value=1.0,
+                        step=0.5,
+                        key=f"hora_{i}"
+                    )
+
+                    observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}")
+                    st.markdown("---")
+
+                    lancamentos.append({
+                        "descricao": descricao,
+                        "projeto": projeto,
+                        "valor": valor,
+                        "observacao": observacao
+          
+                    })
+
+            # Pré-visualização e cálculo proporcional
+            st.subheader("📊 Pré-visualização dos lançamentos")
+            preview_data = []
+
+            if lancamentos:
+                if tipo_lancamento == "Horas":
+                    total_horas = sum(l["valor"] for l in lancamentos)
+                   
+                    if total_horas > 0:
+                        for l in lancamentos:
+                            porcent = (l["valor"] / total_horas) * 100
+                            preview_data.append({
+                       
+                                "Descrição": l["descricao"],
+                                "Projeto": l["projeto"],
+                                "Porcentagem": porcent
+                            })
+            
+                    else:
+                        for l in lancamentos:
+                            preview_data.append({
+                                "Descrição": l["descricao"],
+                                "Projeto": l["projeto"],
+           
+                                "Porcentagem": l["valor"]
+                            })
+
+            if preview_data:
+                df_preview = pd.DataFrame(preview_data)
+                soma_nova = df_preview["Porcentagem"].sum()
+                total_final = total_existente + soma_nova
+             
+                saldo_final = max(0, 100 - total_final)
+
+                col_graf, col_info = st.columns([2, 1])
+                with col_graf:
+                    fig_preview = px.pie(
+                        df_preview,
+                        names="Descrição",
+         
+                        values="Porcentagem",
+                        title="Distribuição proporcional dos lançamentos novos",
+                        hole=.4,
+                        color_discrete_sequence=SINAPSIS_PALETTE
+                    )
+         
+                    fig_preview.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
+                    st.plotly_chart(fig_preview, use_container_width=True)
+
+                with col_info:
+                    st.markdown(
+                        f"**Total novo a ser lançado:** {soma_nova:.1f}%  \n"
+                   
+                        f"**Total atual + novo:** {total_final:.1f}%  \n"
+                        f"**Saldo restante após salvar:** {saldo_final:.1f}%"
+                    )
+                    if total_final > 100:
+                        st.error("⚠️ O total projetado ultrapassa 100%. Ajuste os valores antes de salvar.")
+
+            else:
+                st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
+
+            # Botão final de salvar
+            if st.form_submit_button("💾 Salvar Lançamentos"):
+                if mes_num is None:
+                    st.error("Selecione um mês válido.")
+             
+                    st.stop()
+
+                for l in lancamentos:
+                    if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
+                        st.error("Todos os lançamentos devem ter uma Descrição e um Projeto selecionados.")
+                        st.stop()
+
+ 
+                # Conversão horas -> porcentagem proporcional
+                if tipo_lancamento == "Horas":
+                    total_horas = sum(l["valor"] for l in lancamentos)
+                    if total_horas == 0:
+                        st.error("O total de horas deve ser maior que zero.")
+                        st.stop()
+                    for l in lancamentos:
+                        l["porcentagem"] = round((l["valor"] / total_horas) * 100, 2)
+                else:
+                    for l in lancamentos:
+   
+                        l["porcentagem"] = l["valor"]
+
+                total_existente = calcular_porcentagem_existente(
+                    st.session_state["usuario"], mes_num, ano_select
+                )
+                total_novo = total_existente + sum(l["porcentagem"] for l in lancamentos)
+
+                if total_novo > 100.0 + 0.001:
+                    st.error(
+                        f"⚠️ O total de alocação ({total_existente:.1f}% existente + "
+                        f"{sum(l['porcentagem'] for l in lancamentos):.1f}% novo) "
+                        f"excede o limite de 100% para {mes_select}/{ano_select}."
+    
+                    )
+                    st.stop()
+
+                sucesso = True
+                for l in lancamentos:
+                    obs_final = l["observacao"] if l["observacao"] else ''
+                    ok = salvar_atividade(
+   
+                        st.session_state["usuario"],
+                        mes_num,
+                        ano_select,
+                        l["descricao"],
+                        l["projeto"],
+   
+                        int(round(l["porcentagem"])),
+                        obs_final
+                    )
+                    if not ok:
+                        sucesso = False
+
+       
+                if sucesso:
+                    carregar_dados.clear()
+                    total_pos = calcular_porcentagem_existente(
+                        st.session_state["usuario"], mes_num, ano_select
+                    )
+                    if total_pos == 100:
+   
+                        st.balloons()
+                    st.success(
+                        f"✅ {len(lancamentos)} lançamentos salvos com sucesso! \n"
+                        f"📊 Total alocado em {mes_select}/{ano_select}: {total_pos:.1f}%."
+                    )
+                    st.rerun()
+                else:
+                    st.error("❌ Ocorreu um erro ao salvar os lançamentos. Verifique os dados.")
+
+
+    # ==============================
+    # 7.4. Minhas Atividades (Versão Final Completa com extras)
+    # ==============================
+    elif aba == "Minhas Atividades":
+        st.header("📋 Minhas Atividades")
+
         col_mes, col_ano = st.columns(2)
         mes_select = col_mes.selectbox(
             "Mês",
@@ -1069,345 +1443,157 @@ elif aba == "Lançar Atividade":
             index=list(MESES.values()).index(MESES[datetime.today().month]) + 1
         )
         ano_select = col_ano.selectbox("Ano", ANOS, index=ANOS.index(datetime.today().year))
-
         mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
-        total_existente = 0
+
         if mes_num:
-            total_existente = calcular_porcentagem_existente(
+            atividades = carregar_atividades_usuario(
+   
                 st.session_state["usuario"], mes_num, ano_select
             )
-        saldo_restante = max(0, 100 - total_existente)
-
-        st.info(
-            f"📅 **Mês selecionado:** {mes_select}/{ano_select}  \n"
-            f"📊 **Total já alocado:** {total_existente:.1f}%  \n"
-            f"💡 **Saldo restante disponível:** {saldo_restante:.1f}%"
-        )
-
-        # Tipo de lançamento
-        tipo_lancamento = st.radio(
-            "Tipo de lançamento:",
-            ["Porcentagem", "Horas"],
-            horizontal=True
-        )
-
-        # Quantos lançamentos
-        qtd_lancamentos = st.number_input(
-            "Quantos lançamentos deseja adicionar?",
-            min_value=1,
-            max_value=20,
-            value=1,
-            step=1
-        )
-
-        st.markdown("---")
-        st.subheader("Detalhes dos lançamentos")
-
-        lancamentos = []
-        for i in range(qtd_lancamentos):
-            st.markdown(f"**Lançamento {i+1}**")
-
-            col1, col2 = st.columns(2)
-            descricao = col1.selectbox(
-                f"Descrição {i+1}",
-                DESCRICOES_SELECT,
-                key=f"desc_{i}"
-            )
-            projeto = col2.selectbox(
-                f"Projeto {i+1}",
-                PROJETOS_SELECT,
-                key=f"proj_{i}"
-            )
-
-            if tipo_lancamento == "Porcentagem":
-                valor = st.number_input(
-                    f"Porcentagem {i+1} (%)",
-                    min_value=1.0,
-                    max_value=100.0,
-                    value=100.0 if qtd_lancamentos == 1 else 0.0,
-                    step=1.0,
-                    key=f"porc_{i}"
-                )
-            else:
-                valor = st.number_input(
-                    f"Horas {i+1}",
-                    min_value=0.1,
-                    max_value=200.0,
-                    value=1.0,
-                    step=0.5,
-                    key=f"hora_{i}"
-                )
-
-            observacao = st.text_area(f"Observação {i+1} (Opcional)", key=f"obs_{i}")
-            st.markdown("---")
-
-            lancamentos.append({
-                "descricao": descricao,
-                "projeto": projeto,
-                "valor": valor,
-                "observacao": observacao
-            })
-
-        # Pré-visualização e cálculo proporcional
-        st.subheader("📊 Pré-visualização dos lançamentos")
-        preview_data = []
-
-        if lancamentos:
-            if tipo_lancamento == "Horas":
-                total_horas = sum(l["valor"] for l in lancamentos)
-                if total_horas > 0:
-                    for l in lancamentos:
-                        porcent = (l["valor"] / total_horas) * 100
-                        preview_data.append({
-                            "Descrição": l["descricao"],
-                            "Projeto": l["projeto"],
-                            "Porcentagem": porcent
-                        })
-            else:
-                for l in lancamentos:
-                    preview_data.append({
-                        "Descrição": l["descricao"],
-                        "Projeto": l["projeto"],
-                        "Porcentagem": l["valor"]
-                    })
-
-        if preview_data:
-            df_preview = pd.DataFrame(preview_data)
-            soma_nova = df_preview["Porcentagem"].sum()
-            total_final = total_existente + soma_nova
-            saldo_final = max(0, 100 - total_final)
-
-            col_graf, col_info = st.columns([2, 1])
-            with col_graf:
-                fig_preview = px.pie(
-                    df_preview,
-                    names="Descrição",
-                    values="Porcentagem",
-                    title="Distribuição proporcional dos lançamentos novos",
-                    hole=.4,
-                    color_discrete_sequence=SINAPSIS_PALETTE
-                )
-                fig_preview.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
-                st.plotly_chart(fig_preview, use_container_width=True)
-
-            with col_info:
-                st.markdown(
-                    f"**Total novo a ser lançado:** {soma_nova:.1f}%  \n"
-                    f"**Total atual + novo:** {total_final:.1f}%  \n"
-                    f"**Saldo restante após salvar:** {saldo_final:.1f}%"
-                )
-                if total_final > 100:
-                    st.error("⚠️ O total projetado ultrapassa 100%. Ajuste os valores antes de salvar.")
-
         else:
-            st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
+            atividades = []
 
-        # Botão final de salvar
-        if st.form_submit_button("💾 Salvar Lançamentos"):
-            if mes_num is None:
-                st.error("Selecione um mês válido.")
-                st.stop()
+        if not atividades:
+            st.info(f"📅 Nenhuma atividade encontrada para {mes_select}/{ano_select}.")
+            st.stop()
 
-            for l in lancamentos:
-                if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
-                    st.error("Todos os lançamentos devem ter uma Descrição e um Projeto selecionados.")
+        total_alocado = sum(a["porcentagem"] for a in atividades)
+        saldo_restante = max(0, 100 - total_alocado)
+
+        st.success(f"📊 **Total alocado:** {total_alocado:.1f}%  | 💡 Saldo restante: {saldo_restante:.1f}%**")
+
+        # Gráfico comparativo (alocado vs saldo)
+        fig_saldo = px.pie(
+            names=["Alocado", "Disponível"],
+            values=[total_alocado, saldo_restante],
+            title="Visão geral do mês",
+            color_discrete_sequence=["#5B8CFF", "#E0E0E0"]
+        )
+        fig_saldo.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
+        st.plotly_chart(fig_saldo, use_container_width=True)
+
+        # Botão para copiar mês anterior
+        if st.button("📋 Copiar lançamentos do mês anterior"):
+            mes_anterior = mes_num - 1 if mes_num > 1 else 12
+            ano_ref = ano_select if mes_num > 1 else ano_select - 1
+            antigos = carregar_atividades_usuario(st.session_state["usuario"], mes_anterior, ano_ref)
+            if antigos:
+                total_novo = total_alocado + sum(a["porcentagem"] for a in antigos)
+                if total_novo > 100.0 + 0.001:
+                    st.error(f"⚠️ A cópia excede 100% de alocação para {mes_select}/{ano_select} ({total_novo:.1f}%). Exclua ou ajuste lançamentos atuais antes de copiar.")
                     st.stop()
 
-            # Conversão horas -> porcentagem proporcional
-            if tipo_lancamento == "Horas":
-                total_horas = sum(l["valor"] for l in lancamentos)
-                if total_horas == 0:
-                    st.error("O total de horas deve ser maior que zero.")
-                    st.stop()
-                for l in lancamentos:
-                    l["porcentagem"] = round((l["valor"] / total_horas) * 100, 2)
-            else:
-                for l in lancamentos:
-                    l["porcentagem"] = l["valor"]
-
-            total_existente = calcular_porcentagem_existente(
-                st.session_state["usuario"], mes_num, ano_select
-            )
-            total_novo = total_existente + sum(l["porcentagem"] for l in lancamentos)
-
-            if total_novo > 100.0 + 0.001:
-                st.error(
-                    f"⚠️ O total de alocação ({total_existente:.1f}% existente + "
-                    f"{sum(l['porcentagem'] for l in lancamentos):.1f}% novo) "
-                    f"excede o limite de 100% para {mes_select}/{ano_select}."
-                )
-                st.stop()
-
-            sucesso = True
-            for l in lancamentos:
-                obs_final = l["observacao"] if l["observacao"] else ''
-                ok = salvar_atividade(
-                    st.session_state["usuario"],
-                    mes_num,
-                    ano_select,
-                    l["descricao"],
-                    l["projeto"],
-                    int(round(l["porcentagem"])),
-                    obs_final
-                )
-                if not ok:
-                    sucesso = False
-
-            if sucesso:
+                for a in antigos:
+                    salvar_atividade(
+                        st.session_state["usuario"],
+   
+                        mes_num,
+                        ano_select,
+                        a["descricao"],
+                        a["projeto"],
+                        a["porcentagem"],
+   
+                        a["observacao"]
+                    )
                 carregar_dados.clear()
-                total_pos = calcular_porcentagem_existente(
-                    st.session_state["usuario"], mes_num, ano_select
-                )
-                if total_pos == 100:
-                    st.balloons()
-                st.success(
-                    f"✅ {len(lancamentos)} lançamentos salvos com sucesso!  \n"
-                    f"📊 Total alocado em {mes_select}/{ano_select}: {total_pos:.1f}%."
-                )
+                st.success("✅ Lançamentos do mês anterior copiados com sucesso!")
                 st.rerun()
             else:
-                st.error("❌ Ocorreu um erro ao salvar os lançamentos. Verifique os dados.")
+                st.warning("⚠️ Nenhum lançamento encontrado no mês anterior.")
 
-
-# ==============================
-# 7.4. Minhas Atividades (Versão Final Completa com extras)
-# ==============================
-elif aba == "Minhas Atividades":
-    st.header("📋 Minhas Atividades")
-
-    col_mes, col_ano = st.columns(2)
-    mes_select = col_mes.selectbox(
-        "Mês",
-        MESES_SELECT,
-        index=list(MESES.values()).index(MESES[datetime.today().month]) + 1
-    )
-    ano_select = col_ano.selectbox("Ano", ANOS, index=ANOS.index(datetime.today().year))
-    mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
-
-    if mes_num:
-        atividades = carregar_atividades_usuario(
-            st.session_state["usuario"], mes_num, ano_select
+        # Botão de exportar para Excel
+        df_export = pd.DataFrame(atividades)
+        buffer = io.BytesIO()
+        df_export.to_excel(buffer, index=False)
+        st.download_button(
+            label="📤 Exportar atividades para Excel",
+            data=buffer.getvalue(),
+            file_name=f"atividades_{mes_select}_{ano_select}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-    else:
-        atividades = []
 
-    if not atividades:
-        st.info(f"📅 Nenhuma atividade encontrada para {mes_select}/{ano_select}.")
-        st.stop()
+        # Exibir gráfico detalhado
+        df_graf = pd.DataFrame(atividades)
+        df_graf = df_graf.groupby("descricao", as_index=False)["porcentagem"].sum()
+        fig_graf = px.pie(
+  
+            df_graf,
+            names="descricao",
+            values="porcentagem",
+            title="Distribuição atual das atividades",
+            hole=.4,
+            color_discrete_sequence=SINAPSIS_PALETTE
+        )
+        fig_graf.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
+        st.plotly_chart(fig_graf, use_container_width=True)
 
-    total_alocado = sum(a["porcentagem"] for a in atividades)
-    saldo_restante = max(0, 100 - total_alocado)
+        # Exibir lista com edição
+        st.subheader("✏️ Editar minhas atividades")
+        for idx, a in enumerate(atividades):
+            with st.expander(f"📌 {a['descricao']} | {a['projeto']} ({a['porcentagem']}%)", expanded=False):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                with col1:
+                    st.text_input("Descrição", a["descricao"], disabled=True, key=f"desc_{idx}")
+                with col2:
+                    st.text_input("Projeto", a["projeto"], disabled=True, key=f"proj_{idx}")
+                with col3:
+   
+                    nova_porcentagem = st.number_input(
+                        "Porcentagem (%)",
+                        min_value=0,
+                        max_value=100,
+                        value=int(a["porcentagem"]),
+    
+                        step=1,
+                        key=f"porc_{idx}"
+                    )
 
-    st.success(f"📊 **Total alocado:** {total_alocado:.1f}%  |  💡 Saldo restante: {saldo_restante:.1f}%**")
-
-    # Gráfico comparativo (alocado vs saldo)
-    fig_saldo = px.pie(
-        names=["Alocado", "Disponível"],
-        values=[total_alocado, saldo_restante],
-        title="Visão geral do mês",
-        color_discrete_sequence=["#5B8CFF", "#E0E0E0"]
-    )
-    fig_saldo.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
-    st.plotly_chart(fig_saldo, use_container_width=True)
-
-    # Botão para copiar mês anterior
-    if st.button("📋 Copiar lançamentos do mês anterior"):
-        mes_anterior = mes_num - 1 if mes_num > 1 else 12
-        ano_ref = ano_select if mes_num > 1 else ano_select - 1
-        antigos = carregar_atividades_usuario(st.session_state["usuario"], mes_anterior, ano_ref)
-        if antigos:
-            for a in antigos:
-                salvar_atividade(
-                    st.session_state["usuario"],
-                    mes_num,
-                    ano_select,
-                    a["descricao"],
-                    a["projeto"],
-                    a["porcentagem"],
-                    a["observacao"]
-                )
-            carregar_dados.clear()
-            st.success("✅ Lançamentos do mês anterior copiados com sucesso!")
-            st.rerun()
-        else:
-            st.warning("⚠️ Nenhum lançamento encontrado no mês anterior.")
-
-    # Botão de exportar para Excel
-    df_export = pd.DataFrame(atividades)
-    buffer = io.BytesIO()
-    df_export.to_excel(buffer, index=False)
-    st.download_button(
-        label="📤 Exportar atividades para Excel",
-        data=buffer.getvalue(),
-        file_name=f"atividades_{mes_select}_{ano_select}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # Exibir gráfico detalhado
-    df_graf = pd.DataFrame(atividades)
-    df_graf = df_graf.groupby("descricao", as_index=False)["porcentagem"].sum()
-    fig_graf = px.pie(
-        df_graf,
-        names="descricao",
-        values="porcentagem",
-        title="Distribuição atual das atividades",
-        hole=.4,
-        color_discrete_sequence=SINAPSIS_PALETTE
-    )
-    fig_graf.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
-    st.plotly_chart(fig_graf, use_container_width=True)
-
-    # Exibir lista com edição
-    st.subheader("✏️ Editar minhas atividades")
-    for idx, a in enumerate(atividades):
-        with st.expander(f"📌 {a['descricao']} | {a['projeto']} ({a['porcentagem']}%)", expanded=False):
-            col1, col2, col3 = st.columns([2, 2, 1])
-            with col1:
-                st.text_input("Descrição", a["descricao"], disabled=True, key=f"desc_{idx}")
-            with col2:
-                st.text_input("Projeto", a["projeto"], disabled=True, key=f"proj_{idx}")
-            with col3:
-                nova_porcentagem = st.number_input(
-                    "Porcentagem (%)",
-                    min_value=0,
-                    max_value=100,
-                    value=int(a["porcentagem"]),
-                    step=1,
-                    key=f"porc_{idx}"
+                observacao = st.text_area(
+                    "Observação (opcional)",
+                    a.get("observacao", ""),
+                    key=f"obs_{idx}"
                 )
 
-            observacao = st.text_area(
-                "Observação (opcional)",
-                a.get("observacao", ""),
-                key=f"obs_{idx}"
-            )
+                col_salvar, col_excluir = st.columns(2)
+                with col_salvar:
+                    if st.button(f"💾 Salvar alterações ({idx})"):
+                        
+                        # --- VERIFICAÇÃO DE 100% NA EDIÇÃO ---
+                        # 1. Calcula o total existente, excluindo a atividade atual
+                        total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
+                        
+                        # 2. Verifica se a nova porcentagem + o total existente ultrapassa 100%
+                        if (total_excluido + nova_porcentagem) > 100.0 + 0.001:
+                            st.error(f"⚠️ A edição ultrapassa 100% de alocação para {mes_select}/{ano_select} ({total_excluido + nova_porcentagem:.1f}%). Ajuste o valor.")
+                            st.stop()
 
-            col_salvar, col_excluir = st.columns(2)
-            with col_salvar:
-                if st.button(f"💾 Salvar alterações ({idx})"):
-                    ok = atualizar_atividade(a["id"], nova_porcentagem, observacao)
-                    if ok:
-                        carregar_dados.clear()
-                        st.success("✅ Atividade atualizada com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao atualizar atividade.")
-            with col_excluir:
-                if st.button(f"🗑️ Excluir ({idx})"):
-                    ok = excluir_atividade(a["id"])
-                    if ok:
-                        carregar_dados.clear()
-                        st.success("🗑️ Atividade excluída!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao excluir atividade.")
 
-    st.markdown("---")
-    st.caption(f"🕓 Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+                        ok = atualizar_atividade(a["id"], nova_porcentagem, observacao)
+                        if ok:
+                            carregar_dados.clear()
+                            st.success("✅ Atividade atualizada com sucesso!")
+                            st.rerun()
+   
+                        else:
+                            st.error("❌ Erro ao atualizar atividade.")
+                with col_excluir:
+                    if st.button(f"🗑️ Excluir ({idx})"):
+                        ok = excluir_atividade(a["id"])
+ 
+                        if ok:
+                            carregar_dados.clear()
+                            st.success("🗑️ Atividade excluída!")
+                            st.rerun()
+      
+                        else:
+                            st.error("❌ Erro ao excluir atividade.")
 
-    # ==============================
-    # 7.5. Consolidado para Admin
-    # ==============================
+        st.markdown("---")
+        st.caption(f"🕓 Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+
+        # ==============================
+        # 7.5. Consolidado para Admin
+        # ==============================
     elif aba == "Consolidado" and st.session_state["admin"]:
         st.header("📑 Consolidado Geral de Atividades")
         
@@ -1416,13 +1602,15 @@ elif aba == "Minhas Atividades":
         else:
             col_admin1, col_admin2, col_admin3 = st.columns(3)
             
+   
             usuarios_unicos = sorted(atividades_df['usuario'].unique())
             usuario_selecionado = col_admin1.selectbox("Filtrar por Usuário", ["Todos"] + usuarios_unicos)
             
             atividades_df['data_mes'] = atividades_df['data'].dt.strftime('%Y-%m')
             meses_unicos = sorted(atividades_df['data_mes'].unique(), reverse=True)
             mes_selecionado_admin = col_admin2.selectbox("Filtrar por Mês/Ano", ["Todos"] + meses_unicos)
-            
+          
+   
             df_consolidado = atividades_df.copy()
 
             if usuario_selecionado != "Todos":
@@ -1431,27 +1619,32 @@ elif aba == "Minhas Atividades":
             if mes_selecionado_admin != "Todos":
                 df_consolidado = df_consolidado[df_consolidado['data_mes'] == mes_selecionado_admin]
 
+  
             st.markdown("---")
             
             if not df_consolidado.empty:
                 st.subheader("Visualização dos Dados Filtrados")
                 
                 df_mensal = df_consolidado.groupby(['data_mes'])['porcentagem'].sum().reset_index()
+           
                 df_mensal.columns = ['Mês/Ano', 'Total Alocado (%)']
                 
                 fig_mensal = px.bar(
                     df_mensal, 
                     x='Mês/Ano', 
+              
                     y='Total Alocado (%)', 
                     title=f"Total de Porcentagem Alocada por Mês",
                     color='Total Alocado (%)',
                     color_continuous_scale=px.colors.sequential.Plotly3,
                     height=400
+    
                 )
                 fig_mensal.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Ideal", annotation_position="top left")
                 st.plotly_chart(fig_mensal, use_container_width=True)
                 
                 st.subheader("Tabela de Dados Detalhada")
+              
                 st.dataframe(df_consolidado.drop(columns=['data_mes']), use_container_width=True)
 
                 st.markdown("---")
@@ -1463,6 +1656,7 @@ elif aba == "Minhas Atividades":
                     'ano': 'Ano',
                     'descricao': 'Descrição',
                     'projeto': 'Projeto',
+                
                     'porcentagem': 'Porcentagem',
                     'observacao': 'Observação',
                     'status': 'Status de Aprovação'
@@ -1476,20 +1670,22 @@ elif aba == "Minhas Atividades":
                     label="⬇️ Baixar Dados Filtrados (Excel)",
                     data=buffer,
                     file_name=f"atividades_consolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+  
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
             else:
                 st.info("Nenhum dado encontrado com os filtros selecionados.")
     
-    # ==============================
-    # 7.6. Importar Dados
-    # ==============================
+        # ==============================
+        # 7.6. Importar Dados
+        # ==============================
     elif aba == "Importar Dados" and st.session_state["admin"]:
         st.header("⬆️ Importação de Dados em Massa (Admin)")
         st.warning(
             "⚠️ **Aviso de Formato:** Seu arquivo deve conter uma coluna **'Data'** no formato Mês/Ano (MM/AAAA) ou Dia/Mês/Ano (DD/MM/AAAA). "
             "A porcentagem será multiplicada por 100 (ex: 0.25 -> 25%). **O status será definido como 'Pendente'.**"
+     
         )
         
         uploaded_file = st.file_uploader("Carregar arquivo CSV ou XLSX com lançamentos", type=["csv", "xlsx"])
@@ -1498,34 +1694,42 @@ elif aba == "Minhas Atividades":
             try:
                 df_import = None
                 
+        
                 if uploaded_file.name.endswith('.csv'):
                     uploaded_file.seek(0)
                     file_bytes = uploaded_file.getvalue()
                     
                     encodings_separators = [
+       
                         ('latin-1', ';'), ('utf-8', ','), ('latin-1', ','), ('utf-8', ';')
                     ]
                     
                     for encoding, sep in encodings_separators:
+            
                         try:
                             file_content = file_bytes.decode(encoding, errors='strict')
                             df_attempt = pd.read_csv(io.StringIO(file_content), sep=sep, engine='python')
+                         
                             
                             if df_attempt.shape[1] >= 5:
                                 df_import = df_attempt
+                                
                                 break
                             else:
                                 raise ValueError(f"Número de colunas inesperado ({df_attempt.shape[1]}).")
                             
+       
                         except Exception:
                             continue
                             
                     if df_import is None:
-                            raise Exception("Falha ao tokenizar os dados após múltiplas tentativas de delimitador e encoding. Verifique a formatação do CSV.")
+   
+                        raise Exception("Falha ao tokenizar os dados após múltiplas tentativas de delimitador e encoding. Verifique a formatação do CSV.")
                         
                 elif uploaded_file.name.endswith('.xlsx'):
                     uploaded_file.seek(0)
                     df_import = pd.read_excel(uploaded_file)
+             
                 
                 if df_import is None:
                     raise Exception("Não foi possível processar o arquivo. Certifique-se de que é um CSV ou XLSX válido.")
@@ -1533,16 +1737,19 @@ elif aba == "Minhas Atividades":
 
                 st.subheader("Pré-visualização dos Dados Carregados")
                 st.dataframe(df_import.head())
+        
                 
                 colunas_mapeamento_origem = {
                     'Nome': 'usuario',
                     'Data': 'data_str',
                     'Descrição': 'descricao',
+           
                     'Projeto': 'projeto',
                     'Porcentagem': 'porcentagem',
                     'Observação (Opcional)': 'observacao',
                 }
                 
+               
                 df_import.columns = df_import.columns.str.strip().str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8').str.lower()
                 
                 colunas_renomear = {origem.lower(): destino for origem, destino in colunas_mapeamento_origem.items()}
@@ -1555,6 +1762,7 @@ elif aba == "Minhas Atividades":
                 colunas_base_necessarias = ['usuario', 'data_str', 'descricao', 'projeto', 'porcentagem']
                 for col in colunas_base_necessarias:
                     if col not in df_import.columns:
+                
                         raise KeyError(f"A coluna **'{col.capitalize()}'** não foi encontrada no arquivo após a renomeação. Verifique se o nome do cabeçalho está correto.")
 
                 # --- PRÉ-CADASTRO DE USUÁRIOS ---
@@ -1562,10 +1770,12 @@ elif aba == "Minhas Atividades":
                 usuarios_csv = df_import['usuario'].dropna().unique().tolist()
                 
                 if not usuarios_csv:
+  
                     st.error("Nenhum usuário válido encontrado na coluna 'Nome'. Verifique o arquivo.")
                 else:
                     with st.spinner(f"Verificando e pré-cadastrando {len(usuarios_csv)} usuários..."):
                         
+        
                         usuarios_df_reloaded, _ = carregar_dados() 
                         usuarios_existentes_db = usuarios_df_reloaded['usuario'].tolist()
                         
@@ -1577,26 +1787,31 @@ elif aba == "Minhas Atividades":
                         else:
                             st.info(f"Todos os {len(usuarios_csv)} usuários do arquivo já estão cadastrados no sistema.")
                     
-                    # --- Limpeza e Transformação dos Dados de Atividade ---
+            
+                        # --- Limpeza e Transformação dos Dados de Atividade ---
                     df_import['data'] = pd.to_datetime(df_import['data_str'], errors='coerce', dayfirst=True)
                     df_import['porcentagem'] = pd.to_numeric(df_import['porcentagem'], errors='coerce')
                     
+                
                     df_import.dropna(subset=['data', 'usuario', 'porcentagem'], inplace=True)
                     df_import.reset_index(drop=True, inplace=True) 
 
                     df_import['mes'] = df_import['data'].dt.month.astype(int)
                     df_import['ano'] = df_import['data'].dt.year.astype(int)
                     
+       
                     df_import['porcentagem'] = (df_import['porcentagem'] * 100).round().astype(int)
                     
                     if 'observacao' in df_import.columns:
                         df_import['observacao'].fillna('', inplace=True)
+               
                     else:
                         df_import['observacao'] = ''
 
                     # Adiciona a coluna status como 'Pendente' para a importação
                     df_import['status'] = 'Pendente'
 
+                  
                     colunas_finais = ['usuario', 'data', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'observacao', 'status']
                     df_para_inserir = df_import[colunas_finais]
 
@@ -1604,13 +1819,16 @@ elif aba == "Minhas Atividades":
                     
                     if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final"):
                         with st.spinner('Importando dados de atividades em massa...'):
+                 
                             linhas_inseridas, mensagem = bulk_insert_atividades(df_para_inserir)
                         
                         carregar_dados.clear()
                         
+              
                         if linhas_inseridas > 0:
                             st.success(f"🎉 {linhas_inseridas} registros de atividades importados com sucesso!")
                         else:
+                            
                             st.error(mensagem)
                         
                         st.rerun()
