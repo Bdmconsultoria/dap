@@ -14,7 +14,7 @@ import re # Importação necessária para extrair metadados de hora
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO_APP = "#FFFFFF"      # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
@@ -298,12 +298,12 @@ def atualizar_status_atividade(atividade_id, novo_status):
         conn.close()
 
 def salvar_hierarquia(gerente, subordinado):
-    """Associa um subordinado a um gerente."""
+    """Associa uma pessoa da equipe a um gerente da área (usa 'gerente' e 'subordinado' no DB)."""
     conn = get_db_connection()
     if conn is None: return False
     
     if gerente == subordinado: 
-        st.error("Gerente e Subordinado não podem ser a mesma pessoa.")
+        st.error("Gerente da Área e Pessoa da Equipe não podem ser a mesma pessoa.")
         return False
 
     try:
@@ -322,7 +322,7 @@ def salvar_hierarquia(gerente, subordinado):
         conn.close()
 
 def apagar_hierarquia(gerente, subordinado):
-    """Remove a associação entre gerente e subordinado."""
+    """Remove a associação entre gerente da área e pessoa da equipe (usa 'gerente' e 'subordinado' no DB)."""
     conn = get_db_connection()
     if conn is None: return False
     try:
@@ -471,7 +471,7 @@ def limpar_nomes_usuarios_db():
     try:
         with conn.cursor() as cursor:
             # 1. Atualiza a tabela ATIVIDADES e HIERARQUIA para remover espaços nas chaves
-            cursor.execute("""UPDATE actividades SET usuario = TRIM(usuario);""")
+            cursor.execute("""UPDATE atividades SET usuario = TRIM(usuario);""")
             atividades_afetadas = cursor.rowcount
             
             cursor.execute("""UPDATE hierarquia SET gerente = TRIM(gerente), subordinado = TRIM(subordinado);""")
@@ -479,7 +479,7 @@ def limpar_nomes_usuarios_db():
 
             # 2. Coletar todos os nomes de usuários únicos e limpos
             cursor.execute("""
-                SELECT DISTINCT TRIM(usuario) FROM actividades
+                SELECT DISTINCT TRIM(usuario) FROM atividades
                 UNION
                 SELECT DISTINCT TRIM(gerente) FROM hierarquia
                 UNION
@@ -658,25 +658,25 @@ DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Trei
              "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
 
 PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia",
-            "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
-            "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura",
-            "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente",
-            "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas",
-            "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0",
-            "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)",
-            "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid",
-            "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta",
-            "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid",
-            "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas",
-            "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde",
-            "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics",
-            "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação",
-            "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD",
-            "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT",
-            "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas",
-            "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck",
-            "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
-            "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
+             "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
+             "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura",
+             "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente",
+             "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas",
+             "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0",
+             "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)",
+             "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid",
+             "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta",
+             "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid",
+             "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas",
+             "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde",
+             "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics",
+             "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação",
+             "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD",
+             "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT",
+             "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas",
+             "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck",
+             "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
+             "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
 
 # Adiciona a opção vazia no início das listas para uso no selectbox
 DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
@@ -942,7 +942,7 @@ else:
     # ==============================
     # Habilitado para Admin OU Gerente (pela lógica do menu)
     elif aba == "Gerenciar Time":
-        st.header("🤝 Gerenciar Time e Aprovação de Atividades")
+        st.header("🤝 Gerenciar Equipe e Aprovação de Atividades") # Título atualizado
         
         # Recarrega a hierarquia para o caso de ter sido alterada na mesma sessão
         hierarquia_df_reloaded = carregar_hierarquia()
@@ -956,10 +956,10 @@ else:
         # 1. ADMIN pode gerenciar TODOS (configurar hierarquia de terceiros)
         if st.session_state["admin"]:
             
-            st.info("Você é Administrador e pode configurar e visualizar **qualquer** time.")
+            st.info("Você é Administrador e pode configurar e visualizar **qualquer** equipe.")
             
             # --- 1. CONFIGURAR HIERARQUIA (Apenas para ADMIN) ---
-            st.subheader("1. Configurar Hierarquia (Admin)")
+            st.subheader("1. Configurar Hierarquia da Equipe (Admin)") # Título atualizado
             
             gerentes_disponiveis = sorted(usuarios_list)
             
@@ -967,62 +967,65 @@ else:
                 col_g1, col_g2 = st.columns(2)
                 
                 # Permite que o Admin escolha o Gerente
-                gerente_selecionado = col_g1.selectbox("Gerente", gerentes_disponiveis, key="sb_gerente")
+                gerente_selecionado = col_g1.selectbox("Gerente da Área", gerentes_disponiveis, key="sb_gerente_area") # Termo atualizado
                 
                 
                 # Subordinados disponíveis (todos, exceto o gerente selecionado)
                 subordinados_disponiveis = [u for u in usuarios_list if u != gerente_selecionado]
-                subordinado_selecionado = col_g2.selectbox(
-                    "Novo Liderado", 
+                pessoa_equipe_selecionada = col_g2.selectbox( # Variável atualizada
+                    "Nova Pessoa da Equipe", # Termo atualizado
                     ["--- Selecione ---"] + sorted(subordinados_disponiveis),
-                    key="sb_subordinado"
+                    key="sb_pessoa_equipe" # Chave atualizada
                 )
                 
-                if st.form_submit_button("Adicionar/Atualizar Liderado"):
-                
-                    if subordinado_selecionado != "--- Selecione ---":
-                        if salvar_hierarquia(gerente_selecionado, subordinado_selecionado):
-                            st.success(f"✅ {subordinado_selecionado} adicionado como liderado de **{gerente_selecionado}**.")
+                if st.form_submit_button("Adicionar/Atualizar Pessoa da Equipe"): # Termo atualizado
+                    
+                    if pessoa_equipe_selecionada != "--- Selecione ---":
+                        # Usa a função de salvar original, que usa 'gerente' e 'subordinado' no DB
+                        if salvar_hierarquia(gerente_selecionado, pessoa_equipe_selecionada):
+                            st.success(f"✅ {pessoa_equipe_selecionada} adicionado(a) como Pessoa da Equipe de **{gerente_selecionado}**.") # Mensagem atualizada
                             carregar_hierarquia.clear()
                             st.rerun()
                         else:
                             st.error("Erro ao adicionar hierarquia. Verifique se o usuário existe.")
                     else:
-                        st.warning("Selecione um liderado válido.")
+                        st.warning("Selecione uma pessoa da equipe válida.") # Mensagem atualizada
 
-            st.markdown("---")
-            
-            # --- 1.1. Visualização e Remoção da Hierarquia (Apenas para ADMIN) ---
-            
-            st.subheader("2. Visualizar e Remover Associações (Admin)")
-            
-            if hierarquia_df_reloaded.empty:
-                st.info("Nenhuma hierarquia configurada.")
-            else:
-                st.dataframe(hierarquia_df_reloaded, use_container_width=True)
+                st.markdown("---")
                 
+                # --- 1.1. Visualização e Remoção da Hierarquia (Apenas para ADMIN) ---
                 
-                # Remoção de Hierarquia
-                with st.form("form_remover_hierarquia"):
-                    st.markdown("##### Remover Associação")
+                st.subheader("2. Visualizar e Remover Associações (Admin)")
+                
+                if hierarquia_df_reloaded.empty:
+                    st.info("Nenhuma hierarquia configurada.")
+                else:
+                    # Renomeia temporariamente o DataFrame para exibição
+                    df_exibicao_hierarquia = hierarquia_df_reloaded.rename(columns={'gerente': 'Gerente da Área', 'subordinado': 'Pessoa da Equipe'})
+                    st.dataframe(df_exibicao_hierarquia, use_container_width=True)
                     
                     
-                    gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
-                    gerente_remover = st.selectbox("Gerente (Remoção)", gerentes_remover_list, key="gerente_remover")
-                    
-                    # Filtra subordinados com base no gerente selecionado
-                    subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
-                    subordinado_remover = st.selectbox("Liderado a Remover", sorted(subordinados_do_gerente), key="subordinado_remover")
+                    # Remoção de Hierarquia
+                    with st.form("form_remover_hierarquia"):
+                        st.markdown("##### Remover Associação")
+                        
+                        
+                        gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
+                        gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area") # Termo atualizado
+                        
+                        # Filtra subordinados com base no gerente selecionado
+                        subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                        pessoa_equipe_remover = st.selectbox("Pessoa da Equipe a Remover", sorted(subordinados_do_gerente), key="pessoa_equipe_remover") # Termo atualizado
 
-                    if st.form_submit_button("Remover Associação"):
-                        if apagar_hierarquia(gerente_remover, subordinado_remover):
-                            
-                            st.success(f"❌ Associação entre {gerente_remover} e {subordinado_remover} removida.")
-                            carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
-                            st.rerun()
-                        else:
-                            
-                            st.error("Erro ao remover hierarquia.")
+                        if st.form_submit_button("Remover Associação"):
+                            if apagar_hierarquia(gerente_remover, pessoa_equipe_remover):
+                                
+                                st.success(f"❌ Associação entre {gerente_remover} e {pessoa_equipe_remover} removida.") # Mensagem atualizada
+                                carregar_hierarquia.clear() # Limpa o cache específico da hierarquia
+                                st.rerun()
+                            else:
+                                
+                                st.error("Erro ao remover hierarquia.")
         
         # 2. NÃO-ADMIN (Gerente): Só gerencia seu próprio time
         
@@ -1033,31 +1036,30 @@ else:
         gerentes_com_time = hierarquia_df_reloaded['gerente'].unique().tolist()
         
         if not gerentes_com_time or (is_manager and usuario_logado not in gerentes_com_time):
-            st.warning("Você não está configurado como gerente de nenhum time.")
+            st.warning("Você não está configurado como gerente de nenhuma equipe.") # Termo atualizado
             st.stop()
         
         if st.session_state["admin"]:
-              # Admin 
-              # seleciona qualquer time
-              gerente_a_analisar = st.selectbox(
-                "Selecione o Time para Análise", 
-                sorted(gerentes_com_time)
-              )
+                # Admin seleciona qualquer time
+                gerente_a_analisar = st.selectbox(
+                    "Selecione o Gerente da Área para Análise", # Termo atualizado
+                    sorted(gerentes_com_time)
+                )
         else:
-              # Gerente só vê o próprio time
-            
+                # Gerente só vê o próprio time
+                
             gerente_a_analisar = usuario_logado
-            st.markdown(f"**Time em Análise:** {gerente_a_analisar}")
+            st.markdown(f"**Gerente da Área em Análise:** {gerente_a_analisar}") # Termo atualizado
 
         if gerente_a_analisar not in gerentes_com_time:
-             st.error("Time inválido selecionado.")
-             st.stop()
+                st.error("Gerente da Área inválido selecionado.")
+                st.stop()
 
 
         # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
         
         meu_time_df = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_a_analisar]
-        subordinados_list = meu_time_df['subordinado'].tolist()
+        subordinados_list = meu_time_df['subordinado'].tolist() # Mantém a variável interna como 'subordinado' para consistência do filtro
         
         # Filtros de Mês/Ano para a análise do time
         col_m1, col_m2 = st.columns(2)
@@ -1096,10 +1098,10 @@ else:
         # Calcula o total alocado por usuário
         
         df_resumo_alocacao = df_time_mes.groupby('usuario')['porcentagem'].sum().reset_index()
-        df_resumo_alocacao.columns = ['Subordinado', 'Total Alocado (%)']
+        df_resumo_alocacao.columns = ['Pessoa da Equipe', 'Total Alocado (%)'] # Termo atualizado
         
         # Adiciona usuários sem lançamentos (0%)
-        usuarios_com_lancamento = df_resumo_alocacao['Subordinado'].tolist()
+        usuarios_com_lancamento = df_resumo_alocacao['Pessoa da Equipe'].tolist() # Termo atualizado
         usuarios_sem_lancamento = [u for u in subordinados_list if u not in usuarios_com_lancamento]
         
         for u in usuarios_sem_lancamento:
@@ -1122,21 +1124,21 @@ else:
         
         df_final_style = df_resumo_alocacao.style.applymap(color_alocacao, subset=['Total Alocado (%)'])
         
-        st.markdown(f"##### Status de Alocação do Time **{gerente_a_analisar}** em **{mes_nome_analise}/{ano_analise}**")
+        st.markdown(f"##### Status de Alocação da Equipe do Gerente da Área **{gerente_a_analisar}** em **{mes_nome_analise}/{ano_analise}**") # Termo atualizado
         st.dataframe(df_final_style, use_container_width=True)
         
         st.markdown("---")
         
         
         # --- 3. APROVAÇÃO DE LANÇAMENTOS DETALHADOS ---
-        st.subheader(f"Lançamentos do Time **{gerente_a_analisar}** para Aprovação")
+        st.subheader(f"Lançamentos da Equipe do Gerente da Área **{gerente_a_analisar}** para Aprovação") # Termo atualizado
         
         # Filtros de Status e Usuário para a tabela detalhada
         col_fa1, col_fa2 = st.columns(2)
         
         status_filtro = col_fa1.selectbox("Filtrar por Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"], key="status_filtro_time")
-        subordinado_filtro = col_fa2.selectbox("Filtrar por Liderado", ["Todos"] + sorted(subordinados_list), key="liderado_filtro_time")
-    
+        subordinado_filtro = col_fa2.selectbox("Filtrar por Pessoa da Equipe", ["Todos"] + sorted(subordinados_list), key="liderado_filtro_time") # Termo atualizado
+        
         
         df_aprovacao = df_time_mes.copy()
         
@@ -1146,7 +1148,7 @@ else:
         if subordinado_filtro != "Todos":
             df_aprovacao = df_aprovacao[df_aprovacao['usuario'] == subordinado_filtro]
             
-    
+        
         if df_aprovacao.empty:
             st.info("Nenhuma atividade encontrada com os filtros selecionados.")
         else:
@@ -1245,11 +1247,11 @@ else:
         # 2. CÁLCULO DE HORAS BRUTAS (para o modo Horas - metadado na 'observacao')
         horas_brutas_ativas = []
         for a in atividades_ativas:
-             hora, _ = extrair_hora_bruta(a.get('observacao', ''))
-             if hora > 0:
-                 # Armazena a observação original COMPLETA para re-encapsulamento
-                 horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
-                 
+              hora, _ = extrair_hora_bruta(a.get('observacao', ''))
+              if hora > 0:
+                  # Armazena a observação original COMPLETA para re-encapsulamento
+                  horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
+                  
         total_horas_existentes = sum(h['hora'] for h in horas_brutas_ativas)
 
         # Tipo de lançamento
@@ -1263,13 +1265,13 @@ else:
         # --- Exibição de Saldo Adaptada ---
         if tipo_lancamento == "Porcentagem":
             st.info(
-                f"📅 **Mês selecionado:** {mes_select}/{ano_select}  \n"
-                f"📊 **Total já alocado:** {total_existente:.1f}%  \n"
+                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
+                f"📊 **Total já alocado:** {total_existente:.1f}% \n"
                 f"💡 **Saldo restante disponível:** {saldo_restante:.1f}%"
             )
         else: # Tipo de lançamento é Horas
             st.info(
-                f"📅 **Mês selecionado:** {mes_select}/{ano_select}  \n"
+                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
                 f"⏳ **Horas brutas já lançadas:** {total_horas_existentes:.1f} hrs \n"
                 f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
             )
@@ -1325,8 +1327,8 @@ else:
 
             # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
             observacao = st.text_area(f"Observação {i+1} (Opcional)", 
-                                      key=f"obs_{i}", 
-                                      value=st.session_state.get(f"obs_{i}", ""))
+                                       key=f"obs_{i}", 
+                                       value=st.session_state.get(f"obs_{i}", ""))
             st.markdown("---")
 
             # Armazena os dados atuais do estado de sessão
@@ -1413,15 +1415,15 @@ else:
 
             with col_info:
                 if tipo_lancamento == "Horas":
-                     # No modo horas, a porcentagem do preview é o que será salvo no DB
-                     st.markdown(f"**Total horas (Mês + Novo):** {total_geral_horas:.1f} hrs \n")
-                     st.markdown(f"**Representa:** {soma_nova:.1f}% (do total final)")
-                     if total_geral_horas == 0:
+                    # No modo horas, a porcentagem do preview é o que será salvo no DB
+                    st.markdown(f"**Total horas (Mês + Novo):** {total_geral_horas:.1f} hrs \n")
+                    st.markdown(f"**Representa:** {soma_nova:.1f}% (do total final)")
+                    if total_geral_horas == 0:
                         st.warning("Adicione horas (acima de zero) para calcular a proporção.")
                 else:
                     st.markdown(
-                        f"**Total novo a ser lançado:** {soma_nova:.1f}%  \n"
-                        f"**Total atual + novo:** {total_final:.1f}%  \n"
+                        f"**Total novo a ser lançado:** {soma_nova:.1f}% \n"
+                        f"**Total atual + novo:** {total_final:.1f}% \n"
                         f"**Saldo restante após salvar:** {saldo_final:.1f}%"
                     )
                     if total_final > 100:
@@ -1438,9 +1440,9 @@ else:
 
             # Revalidação de campos e totais antes de salvar
             if not lancamentos_validos:
-                 st.error("Nenhum lançamento válido (com valor > 0) para salvar.")
-                 st.stop()
-                 
+                st.error("Nenhum lançamento válido (com valor > 0) para salvar.")
+                st.stop()
+                
             for l in lancamentos_validos:
                 if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
                     st.error("Todos os lançamentos válidos devem ter uma Descrição e um Projeto selecionados.")
@@ -1456,8 +1458,8 @@ else:
             
             # Validação Final: Modo HORAS (Garante que há horas para calcular)
             if tipo_lancamento == "Horas" and total_geral_horas <= 0:
-                 st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
-                 st.stop()
+                st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
+                st.stop()
 
             # Lógica de Recálculo e Update (Apenas para o modo HORAS)
             recalcular_e_atualizar = (tipo_lancamento == "Horas" and total_geral_horas > 0)
@@ -1561,7 +1563,7 @@ else:
         total_alocado = sum(a["porcentagem"] for a in atividades_ativas_mes)
         saldo_restante = max(0, 100 - total_alocado)
 
-        st.success(f"📊 **Total alocado:** {total_alocado:.1f}%  | 💡 Saldo restante: {saldo_restante:.1f}%**")
+        st.success(f"📊 **Total alocado:** {total_alocado:.1f}%  | 💡 Saldo restante: {saldo_restante:.1f}%**")
 
         # Gráfico comparativo (alocado vs saldo)
         fig_saldo = px.pie(
@@ -1590,8 +1592,8 @@ else:
                 total_novo = total_alocado + sum(a["porcentagem"] for a in antigos)
                 
                 if total_novo > 100.0 + 0.001 and horas_antigas_total == 0:
-                     st.error(f"⚠️ A cópia excede 100% de alocação para {mes_select}/{ano_select} ({total_novo:.1f}%). Exclua ou ajuste lançamentos atuais antes de copiar.")
-                     st.stop()
+                    st.error(f"⚠️ A cópia excede 100% de alocação para {mes_select}/{ano_select} ({total_novo:.1f}%). Exclua ou ajuste lançamentos atuais antes de copiar.")
+                    st.stop()
 
                 for a in antigos:
                     # Preserva a observação, incluindo o metadado de horas, se existir
@@ -1724,7 +1726,7 @@ else:
                             carregar_dados.clear()
                             st.success("🗑️ Atividade excluída!")
                             st.rerun()
-                
+                        
                         else:
                             st.error("❌ Erro ao excluir atividade.")
 
@@ -1967,5 +1969,3 @@ else:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
-
