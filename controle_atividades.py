@@ -50,7 +50,7 @@ except KeyError:
 # ==============================
 # 2. Conexão com PostgreSQL
 # ==============================
-@st.cache_resource
+# CORREÇÃO CRÍTICA: Removido @st.cache_resource. A conexão deve ser criada e fechada em cada uso.
 def get_db_connection():
     """Tenta estabelecer a conexão com o banco de dados e retorna o objeto de conexão."""
     if not DB_PARAMS: return None # Evita tentativa de conexão se secrets falhar
@@ -414,7 +414,9 @@ def carregar_dados():
             return pd.DataFrame(), pd.DataFrame()
             
     finally:
-        conn.close()
+        # CRÍTICO: Garante que a conexão é fechada depois de carregar os dados.
+        if conn:
+            conn.close()
 
 def bulk_insert_usuarios(user_list):
     """Insere usuários inexistentes no banco de dados.
@@ -481,7 +483,7 @@ def limpar_nomes_usuarios_db():
     try:
         with conn.cursor() as cursor:
             # 1. Atualiza a tabela ATIVIDADES e HIERARQUIA para remover espaços nas chaves
-            cursor.execute("""UPDATE atividades SET usuario = TRIM(usuario);""")
+            cursor.execute("""UPDATE actividades SET usuario = TRIM(usuario);""")
             atividades_afetadas = cursor.rowcount
             
             cursor.execute("""UPDATE hierarquia SET gerente = TRIM(gerente), subordinado = TRIM(subordinado);""")
@@ -489,7 +491,7 @@ def limpar_nomes_usuarios_db():
 
             # 2. Coletar todos os nomes de usuários únicos e limpos
             cursor.execute("""
-                SELECT DISTINCT TRIM(usuario) FROM atividades
+                SELECT DISTINCT TRIM(usuario) FROM actividades
                 UNION
                 SELECT DISTINCT TRIM(gerente) FROM hierarquia
                 UNION
@@ -850,7 +852,8 @@ st.markdown(
 
 # --- INSERÇÃO DO LOGO NA SIDEBAR ---
 if LOGO_URL:
-    st.sidebar.image(LOGO_URL, use_column_width=True) # use_column_width para ajustar automaticamente
+    # CORREÇÃO: Usando use_container_width (corrigindo aviso de depreciação)
+    st.sidebar.image(LOGO_URL, use_container_width=True) 
 # ------------------------------------
 
 st.sidebar.markdown("<br>", unsafe_allow_html=True) # Espaço para o logo
