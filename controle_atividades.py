@@ -6,7 +6,7 @@ import psycopg2.extras # Importação necessária para inserção em massa
 import plotly.express as px
 import io # Importação necessária para ler arquivos carregados
 import re # Importação necessária para extrair metadados de hora
-import numpy as np # Adicionado para melhor manipulação de dados
+import numpy as np 
 
 # ==============================
 # 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
@@ -29,8 +29,6 @@ LOGO_URL = "https://raw.githubusercontent.com/Bdmconsultoria/dap/main/logo_sinap
 # ==============================
 # 1. Credenciais PostgreSQL
 # ==============================
-# Nota: st.secrets deve estar configurado no seu seu ambiente Streamlit
-# ATENÇÃO: Verifique se st.secrets está acessível no seu ambiente de execução.
 try:
     DB_PARAMS = {
         "host": st.secrets["postgresql"]["host"],
@@ -45,20 +43,18 @@ except KeyError:
     # EM PRODUÇÃO, esta simulação deve ser REMOVIDA
     DB_PARAMS = {}
     st.error("Configuração 'st.secrets' não encontrada. Verifique seu arquivo secrets.toml.")
-    # Adicione st.stop() se o acesso ao banco for obrigatório
     
 # ==============================
 # 2. Conexão com PostgreSQL
 # ==============================
-# CORREÇÃO CRÍTICA: Removido @st.cache_resource. A conexão deve ser criada e fechada em cada uso.
+# CORREÇÃO DE PERFORMANCE: Removido @st.cache_resource. Conexões são abertas/fechadas em cada uso.
 def get_db_connection():
     """Tenta estabelecer a conexão com o banco de dados e retorna o objeto de conexão."""
-    if not DB_PARAMS: return None # Evita tentativa de conexão se secrets falhar
+    if not DB_PARAMS: return None 
     try:
         conn = psycopg2.connect(**DB_PARAMS)
         return conn
     except Exception as e:
-        # st.error(f"❌ Erro ao conectar ao banco de dados: {e}")
         return None
 
 # ==============================
@@ -116,8 +112,6 @@ def setup_db():
                     conn.commit()
             
             except Exception as e:
-                # Loga o erro, mas não para o app
-                # st.error(f"Aviso de migração de tabela: {e}")
                 conn.rollback() 
             
             # NOVA TABELA: HIERARQUIA
@@ -204,14 +198,6 @@ def calcular_porcentagem_existente(usuario, mes, ano, excluido_id=None):
     """
     Calcula a soma das porcentagens de atividades já registradas para o usuário no MÊS/ANO,
     expandindo o cálculo para ignorar atividades rejeitadas (que não contam para o 100%).
-    
-    A função original já ignora a atividade de edição (excluido_id).
-    
-    Para replicar a lógica do front-end, precisamos de uma versão que só some
-    atividades ativas (não rejeitadas).
-    
-    Como esta função é usada na LÓGICA DE EDIÇÃO do front-end, a lógica de excluir
-    a atividade sendo editada é mantida.
     """
     conn = get_db_connection()
     if conn is None:
@@ -358,7 +344,6 @@ def carregar_hierarquia():
         hierarquia_df = pd.read_sql("SELECT gerente, subordinado FROM hierarquia ORDER BY gerente, subordinado;", conn)
         return hierarquia_df
     except Exception as e:
-        # st.error(f"Erro ao carregar hierarquia: {e}")
         return pd.DataFrame()
     finally:
         conn.close()
@@ -395,7 +380,6 @@ def carregar_dados():
     except Exception as e:
         # Lógica de migração de status
         if 'column "status" does not exist' in str(e):
-            # st.warning("⚠️ Tentativa de carregamento sem a coluna 'status' (migração em andamento).")
             
             try:
                 atividades_df = pd.read_sql(query_base, conn)
@@ -403,7 +387,6 @@ def carregar_dados():
                 if not atividades_df.empty:
                     atividades_df['data'] = pd.to_datetime(atividades_df['data'])
                     atividades_df['status'] = 'Pendente' 
-                    # st.session_state['db_migrating'] = True # Não é necessário interromper o fluxo aqui
                 
                 return usuarios_df, atividades_df 
             except Exception as e2:
@@ -414,7 +397,6 @@ def carregar_dados():
             return pd.DataFrame(), pd.DataFrame()
             
     finally:
-        # CRÍTICO: Garante que a conexão é fechada depois de carregar os dados.
         if conn:
             conn.close()
 
@@ -483,7 +465,7 @@ def limpar_nomes_usuarios_db():
     try:
         with conn.cursor() as cursor:
             # 1. Atualiza a tabela ATIVIDADES e HIERARQUIA para remover espaços nas chaves
-            cursor.execute("""UPDATE actividades SET usuario = TRIM(usuario);""")
+            cursor.execute("""UPDATE atividades SET usuario = TRIM(usuario);""")
             atividades_afetadas = cursor.rowcount
             
             cursor.execute("""UPDATE hierarquia SET gerente = TRIM(gerente), subordinado = TRIM(subordinado);""")
@@ -491,7 +473,7 @@ def limpar_nomes_usuarios_db():
 
             # 2. Coletar todos os nomes de usuários únicos e limpos
             cursor.execute("""
-                SELECT DISTINCT TRIM(usuario) FROM actividades
+                SELECT DISTINCT TRIM(usuario) FROM atividades
                 UNION
                 SELECT DISTINCT TRIM(gerente) FROM hierarquia
                 UNION
@@ -553,7 +535,6 @@ def extrair_hora_bruta(observacao):
         return 0.0, ''
     
     # Padrão para encontrar: [HORA:X|OBS_REAL]
-    # re.DOTALL é importante para que o '.' combine com newlines dentro da observação
     match = re.search(r'\[HORA:(\d+\.?\d*)\|(.*)\]', observacao, re.DOTALL)
     
     if match:
@@ -565,7 +546,7 @@ def extrair_hora_bruta(observacao):
         obs_limpa = match.group(2).strip()
         return hora, obs_limpa
     
-    # Se não houver metadado, assume 0 horas (ou tenta limpar de formato antigo), e a observação é o texto completo
+    # Se não houver metadado, assume 0 horas, e a observação é o texto completo
     return 0.0, observacao.strip()
 
 def atualizar_porcentagem_atividade(atividade_id, nova_porcentagem):
@@ -603,7 +584,6 @@ def carregar_atividades_usuario(usuario, mes, ano):
         # Converte para lista de dicionários para facilitar o uso no front-end
         return atividades_df.to_dict('records')
     except Exception as e:
-        # st.error(f"Erro ao carregar atividades do usuário: {e}")
         return []
     finally:
         conn.close()
@@ -728,7 +708,7 @@ def handle_delete(atividade_id):
     """Apaga uma atividade e limpa o cache, forçando o rerun."""
     if apagar_atividade(atividade_id):
         carregar_dados.clear()
-        st.toast("Atividade apagada!", icon="🗑️") # Melhoria de UX: Usar st.toast em vez de st.success (limpa o app)
+        st.toast("Atividade apagada!", icon="🗑️") 
         
         st.rerun()
 
@@ -756,8 +736,6 @@ if 'edit_id' not in st.session_state:
     st.session_state['edit_id'] = None
 if 'show_change_password' not in st.session_state:
     st.session_state['show_change_password'] = False
-# O DataFrame de lançamento em massa (df_lancamentos) não é mais necessário
-# para o layout de blocos. Apenas a quantidade de lançamentos é importante.
 
 # Carrega os dados
 usuarios_df, atividades_df = carregar_dados()
@@ -768,7 +746,6 @@ hierarquia_df = carregar_hierarquia() # Agora o DataFrame de hierarquia está di
 # ==============================
 
 # --- Injeção de CSS para Estilo Sinapsis ---
-# MELHORIA DE VISUAL: Ajustes para a cor do radio button selecionado ser mais estável e clara.
 st.markdown(
     f"""
     <style>
@@ -794,8 +771,6 @@ st.markdown(
              background-color: {COR_SECUNDARIA} !important;
         }}
         /* Seletor para a opção de rádio selecionada - Mais estável em Streamlit recente */
-        /* O Streamlit não dá uma forma direta de colorir o container do radio selecionado na sidebar. */
-        /* Usamos um seletor que tem maior chance de funcionar na maioria dos casos: */
         [data-testid="stSidebar"] .stRadio > label[data-testid*="stRadioInline"]:has(input:checked) {{
               background-color: {COR_SECUNDARIA} !important;
               border-radius: 5px; /* Adiciona um arredondamento sutil */
@@ -852,7 +827,6 @@ st.markdown(
 
 # --- INSERÇÃO DO LOGO NA SIDEBAR ---
 if LOGO_URL:
-    # CORREÇÃO: Usando use_container_width (corrigindo aviso de depreciação)
     st.sidebar.image(LOGO_URL, use_container_width=True) 
 # ------------------------------------
 
@@ -2203,4 +2177,3 @@ else:
             except Exception as e:
                 # MELHORIA DE VISUAL: Exibir a exceção completa
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-                # st.exception(e) # Pode ser útil para debug em desenvolvimento
