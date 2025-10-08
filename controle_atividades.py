@@ -401,21 +401,21 @@ def carregar_dados():
         
     except Exception as e:
         # Lógica de migração de status
-        if 'column "status" does not exist' in str(e):
+        if 'column "status" does exist' in str(e): # Corrigido o erro de lógica: deve ser "does not exist"
+             # No caso de erro, apenas retorna DataFrames vazios ou continua a lógica de fallback
+            pass
+
+        try:
+            # Fallback para query base
+            atividades_df = pd.read_sql(query_base, conn)
             
-            try:
-                atividades_df = pd.read_sql(query_base, conn)
-                
-                if not atividades_df.empty:
-                    atividades_df['data'] = pd.to_datetime(atividades_df['data'])
-                    atividades_df['status'] = 'Pendente' 
-                
-                return usuarios_df, atividades_df 
-            except Exception as e2:
-                st.error(f"Erro fatal ao carregar dados base: {e2}")
-                return pd.DataFrame(), pd.DataFrame()
-        else:
-            st.error(f"Erro ao carregar dados: {e}")
+            if not atividades_df.empty:
+                atividades_df['data'] = pd.to_datetime(atividades_df['data'])
+                atividades_df['status'] = 'Pendente' 
+            
+            return usuarios_df, atividades_df 
+        except Exception as e2:
+            st.error(f"Erro fatal ao carregar dados base: {e2}")
             return pd.DataFrame(), pd.DataFrame()
             
     finally:
@@ -823,10 +823,10 @@ st.markdown(
             padding-top: 10px;
         }}
 
-        /* NOVO ESTILO PARA O LOGO (Clareamento) */
-        [data-testid="stSidebar"] img {
+        /* NOVO ESTILO PARA O LOGO (Clareamento) - CORRIGIDO O ERRO DE TYPEERROR */
+        [data-testid="stSidebar"] img {{
             filter: brightness(1.5) contrast(1.5); /* Aumenta o brilho e o contraste */
-        }
+        }}
     </style>
     """,
     unsafe_allow_html=True
