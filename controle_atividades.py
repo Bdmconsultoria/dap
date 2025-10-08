@@ -6,6 +6,7 @@ import psycopg2.extras # Importação necessária para inserção em massa
 import plotly.express as px
 import io # Importação necessária para ler arquivos carregados
 import re # Importação necessária para extrair metadados de hora
+import numpy as np # Adicionado para melhor manipulação de dados
 
 # ==============================
 # 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
@@ -14,7 +15,7 @@ import re # Importação necessária para extrair metadados de hora
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO_APP = "#FFFFFF"      # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
@@ -22,8 +23,8 @@ COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # de cores customizada para Plotly (usada nos gráficos)
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
-# O logo foi removido para garantir a estabilidade do carregamento
-LOGO_URL = "" 
+# URL DO LOGO CORRIGIDA PARA O FORMATO RAW DO GITHUB
+LOGO_URL = "https://raw.githubusercontent.com/Bdmconsultoria/dap/main/logo_sinapsis.png" 
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -49,6 +50,7 @@ except KeyError:
 # ==============================
 # 2. Conexão com PostgreSQL
 # ==============================
+@st.cache_resource
 def get_db_connection():
     """Tenta estabelecer a conexão com o banco de dados e retorna o objeto de conexão."""
     if not DB_PARAMS: return None # Evita tentativa de conexão se secrets falhar
@@ -724,7 +726,7 @@ def handle_delete(atividade_id):
     """Apaga uma atividade e limpa o cache, forçando o rerun."""
     if apagar_atividade(atividade_id):
         carregar_dados.clear()
-        st.success("Atividade apagada!")
+        st.toast("Atividade apagada!", icon="🗑️") # Melhoria de UX: Usar st.toast em vez de st.success (limpa o app)
         
         st.rerun()
 
@@ -732,7 +734,7 @@ def handle_status_update(atividade_id, novo_status):
     """Atualiza o status de uma atividade e limpa o cache, forçando o rerun."""
     if atualizar_status_atividade(atividade_id, novo_status):
         carregar_dados.clear()
-        # st.success(f"Lançamento {atividade_id} atualizado para {novo_status}.") # Mensagem será limpa pelo rerun
+        st.toast(f"Lançamento {atividade_id} atualizado para {novo_status}.", icon="✅") 
         st.rerun()
 
 def is_user_a_manager(usuario, hierarquia_df):
@@ -741,7 +743,7 @@ def is_user_a_manager(usuario, hierarquia_df):
         return False
     # Checa se o nome do usuário está na coluna 'gerente'
     return usuario in hierarquia_df['gerente'].unique()
-        
+    
 # ==============================
 # 6. Sessão
 # ==============================
@@ -764,6 +766,7 @@ hierarquia_df = carregar_hierarquia() # Agora o DataFrame de hierarquia está di
 # ==============================
 
 # --- Injeção de CSS para Estilo Sinapsis ---
+# MELHORIA DE VISUAL: Ajustes para a cor do radio button selecionado ser mais estável e clara.
 st.markdown(
     f"""
     <style>
@@ -788,10 +791,15 @@ st.markdown(
         [data-testid="stSidebar"] .stButton > button:hover {{
              background-color: {COR_SECUNDARIA} !important;
         }}
-        /* Seletor para a opção de rádio selecionada */
-        /* Esse seletor pode ser instável entre versões do Streamlit, mas ajuda a realçar a aba selecionada */
-        [data-testid="stSidebar"] .st-b5.st-bd.st-be.st-bf.st-bg.st-bh.st-bi.st-bj.st-bk.st-bl.st-bm.st-bn.st-bo.st-bp.st-bq.st-br.st-bs.st-bt.st-bu.st-bv.st-bw.st-bx {{
-             background-color: {COR_SECUNDARIA} !important;
+        /* Seletor para a opção de rádio selecionada - Mais estável em Streamlit recente */
+        /* O Streamlit não dá uma forma direta de colorir o container do radio selecionado na sidebar. */
+        /* Usamos um seletor que tem maior chance de funcionar na maioria dos casos: */
+        [data-testid="stSidebar"] .stRadio > label[data-testid*="stRadioInline"]:has(input:checked) {{
+              background-color: {COR_SECUNDARIA} !important;
+              border-radius: 5px; /* Adiciona um arredondamento sutil */
+        }}
+        [data-testid="stSidebar"] .stRadio > label[data-testid*="stRadioInline"] {{
+              padding: 5px 10px; /* Adiciona padding para o radio */
         }}
         
         /* Estilo para o corpo principal do APP */
@@ -839,29 +847,38 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+# --- INSERÇÃO DO LOGO NA SIDEBAR ---
+if LOGO_URL:
+    st.sidebar.image(LOGO_URL, use_column_width=True) # use_column_width para ajustar automaticamente
+# ------------------------------------
+
 st.sidebar.markdown("<br>", unsafe_allow_html=True) # Espaço para o logo
 
 # --------------------------------------------------------------------
 
 if st.session_state["usuario"] is None:
     st.title("🔐 Login")
-    usuario = st.text_input("Usuário")
-    senha = st.text_input("Senha", type="password")
-    if st.button("Entrar"):
-        usuario_limpo = usuario.strip()
-        ok, admin = validar_login(usuario_limpo, senha)
-        if ok:
-            st.session_state["usuario"] = usuario_limpo
-            
-            st.session_state["admin"] = admin
-            st.rerun()
-        else:
-            st.error("Usuário ou senha incorretos")
+    # MELHORIA DE VISUAL: Centralizar campos de login ou usar container
+    col_login_a, col_login_b, col_login_c = st.columns([1, 2, 1])
+    with col_login_b:
+        usuario = st.text_input("Usuário", key="login_usuario")
+        senha = st.text_input("Senha", type="password", key="login_senha")
+        if st.button("Entrar", use_container_width=True):
+            usuario_limpo = usuario.strip()
+            ok, admin = validar_login(usuario_limpo, senha)
+            if ok:
+                st.session_state["usuario"] = usuario_limpo
+                
+                st.session_state["admin"] = admin
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos")
 else:
     st.sidebar.markdown(f"**Usuário:** {st.session_state['usuario']}")
 
     # --- BOTÃO E LÓGICA DE ALTERAR SENHA ---
-    if st.sidebar.button("🔑 Alterar Senha"):
+    if st.sidebar.button("🔑 Alterar Senha", key="btn_toggle_change_password"):
         # Alterna o estado de exibição do formulário
         st.session_state['show_change_password'] = not st.session_state['show_change_password']
         st.rerun()
@@ -871,7 +888,7 @@ else:
         with st.sidebar.form("form_change_password"):
             nova_senha_1 = st.text_input("Nova Senha", type="password")
             nova_senha_2 = st.text_input("Confirme a Nova Senha", type="password")
-            if st.form_submit_button("Atualizar Senha"):
+            if st.form_submit_button("Atualizar Senha", use_container_width=True):
                 if nova_senha_1 and nova_senha_1 == nova_senha_2:
                     
                     if alterar_senha(st.session_state["usuario"], nova_senha_1):
@@ -889,7 +906,7 @@ else:
     
     st.sidebar.markdown("---")
     
-    if st.sidebar.button("Sair"):
+    if st.sidebar.button("Sair", use_container_width=True):
         st.session_state["usuario"] = None
         st.session_state["admin"] = False
         st.session_state['show_change_password'] = False
@@ -908,7 +925,8 @@ else:
     if st.session_state["admin"]:
         abas += ["Gerenciar Usuários", "Consolidado", "Importar Dados"]
 
-    aba = st.sidebar.radio("Menu", abas)
+    # MELHORIA DE VISUAL: Ajustar o radio para ser mais compacto
+    aba = st.sidebar.radio("Menu de Navegação", abas, key="main_menu_radio")
 
     # ==============================
     # 7.1. Gerenciar Usuários
@@ -935,13 +953,14 @@ else:
             
             st.rerun()
 
-
+        st.markdown("---")
+        
         # --- Formulário de Adição de Usuário ---
         st.subheader("Adicionar Novo Usuário")
         with st.form("form_add_user"):
-            novo_usuario = st.text_input("Usuário")
-            nova_senha = st.text_input("Senha", type="password")
-            admin_check = st.checkbox("Admin")
+            novo_usuario = st.text_input("Usuário", key="novo_usuario_input")
+            nova_senha = st.text_input("Senha", type="password", key="nova_senha_input")
+            admin_check = st.checkbox("Admin", key="admin_check_input")
             if st.form_submit_button("Adicionar"):
                 
                 if salvar_usuario(novo_usuario.strip(), nova_senha, admin_check):
@@ -950,9 +969,20 @@ else:
         
         # Tabela de Usuários
         usuarios_df_reloaded, _ = carregar_dados()
-        st.subheader("Tabela de Usuários")
+        st.subheader("Tabela de Usuários Cadastrados")
         
-        st.dataframe(usuarios_df_reloaded, use_container_width=True)
+        # MELHORIA DE VISUAL: Usar st.data_editor para melhor visualização (leitura)
+        st.data_editor(
+            usuarios_df_reloaded, 
+            use_container_width=True, 
+            hide_index=True,
+            column_order=["usuario", "admin"],
+            column_config={
+                "usuario": st.column_config.TextColumn("Usuário", help="Nome de usuário para login"),
+                "admin": st.column_config.CheckboxColumn("Admin", help="Privilégio de Administrador")
+            },
+            disabled=True # A edição não é permitida neste dashboard simples
+        )
 
 
     # ==============================
@@ -997,7 +1027,7 @@ else:
                     key="sb_pessoa_equipe" 
                 )
                 
-                if st.form_submit_button("Adicionar/Atualizar Pessoa da Equipe"): 
+                if st.form_submit_button("Adicionar/Atualizar Pessoa da Equipe", use_container_width=True): 
                     
                     if pessoa_equipe_selecionada != "--- Selecione ---":
                         # Usa a função de salvar original, que usa 'gerente' e 'subordinado' no DB
@@ -1021,7 +1051,14 @@ else:
             else:
                 # Renomeia temporariamente o DataFrame para exibição
                 df_exibicao_hierarquia = hierarquia_df_reloaded.rename(columns={'gerente': 'Gerente da Área', 'subordinado': 'Pessoa da Equipe'})
-                st.dataframe(df_exibicao_hierarquia, use_container_width=True)
+                
+                # MELHORIA DE VISUAL: Usar st.data_editor para exibição de hierarquia mais clean
+                st.data_editor(
+                    df_exibicao_hierarquia,
+                    use_container_width=True,
+                    hide_index=True,
+                    disabled=True
+                )
                 
                 
                 # Form 2: Remover Hierarquia (FORA do Form 1)
@@ -1046,7 +1083,7 @@ else:
                         
                     pessoa_equipe_remover = st.selectbox("Pessoa da Equipe a Remover", sorted(subordinados_do_gerente), key="pessoa_equipe_remover", disabled=("Nenhuma Pessoa da Equipe" in subordinados_do_gerente)) 
 
-                    if st.form_submit_button("Remover Associação"):
+                    if st.form_submit_button("Remover Associação", use_container_width=True):
                         # Só tenta remover se houver seleções válidas
                         if gerente_remover != "Nenhum Gerente Configurado" and pessoa_equipe_remover != "Nenhuma Pessoa da Equipe":
                             if apagar_hierarquia(gerente_remover, pessoa_equipe_remover):
@@ -1073,20 +1110,20 @@ else:
             st.stop()
         
         if st.session_state["admin"]:
-                # Admin seleciona qualquer time
-                gerente_a_analisar = st.selectbox(
-                    "Selecione o Gerente da Área para Análise", 
-                    sorted(gerentes_com_time)
-                )
+                 # Admin seleciona qualquer time
+                 gerente_a_analisar = st.selectbox(
+                     "Selecione o Gerente da Área para Análise", 
+                     sorted(gerentes_com_time)
+                 )
         else:
-                # Gerente só vê o próprio time
-                
-            gerente_a_analisar = usuario_logado
-            st.markdown(f"**Gerente da Área em Análise:** {gerente_a_analisar}") 
+                 # Gerente só vê o próprio time
+                 
+             gerente_a_analisar = usuario_logado
+             st.markdown(f"**Gerente da Área em Análise:** **{gerente_a_analisar}**") 
 
         if gerente_a_analisar not in gerentes_com_time:
-                st.error("Gerente da Área inválido selecionado.")
-                st.stop()
+                 st.error("Gerente da Área inválido selecionado.")
+                 st.stop()
 
 
         # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
@@ -1141,24 +1178,41 @@ else:
             df_resumo_alocacao.loc[len(df_resumo_alocacao)] = [u, 0]
         
         # Estilização da tabela de resumo
+        # MELHORIA DE VISUAL: A função de cor para DataFrame está mais robusta e usa as cores do tema
         def color_alocacao(val):
             if isinstance(val, str): return ''
             color = ''
             if val < 50:
-                color = 'background-color: #ffcccc'
+                color = 'background-color: #ffcccc; color: black'
             
             elif 50 <= val < 100:
-                color = 'background-color: #ffffcc'
+                color = 'background-color: #ffffcc; color: black'
             elif val == 100:
-                color = 'background-color: #ccffcc'
+                color = 'background-color: #ccffcc; color: black'
             else:
-                color = 'background-color: #ff9999; font-weight: bold'
+                color = 'background-color: #ff9999; font-weight: bold; color: black'
             return color
         
-        df_final_style = df_resumo_alocacao.style.applymap(color_alocacao, subset=['Total Alocado (%)'])
+        df_resumo_alocacao_final = df_resumo_alocacao.sort_values(by='Total Alocado (%)', ascending=False)
+        df_final_style = df_resumo_alocacao_final.style.map(color_alocacao, subset=['Total Alocado (%)'])
         
         st.markdown(f"##### Status de Alocação da Equipe do Gerente da Área **{gerente_a_analisar}** em **{mes_nome_analise}/{ano_analise}**") # Termo atualizado
-        st.dataframe(df_final_style, use_container_width=True)
+        
+        # MELHORIA DE VISUAL: Uso de st.data_editor para interatividade visual
+        st.data_editor(
+            df_final_style, 
+            use_container_width=True,
+            hide_index=True,
+            disabled=True,
+            column_config={
+                'Total Alocado (%)': st.column_config.ProgressColumn(
+                    'Total Alocado (%)',
+                    format="%.1f%%",
+                    min_value=0,
+                    max_value=100,
+                )
+            }
+        )
         
         st.markdown("---")
         
@@ -1187,6 +1241,7 @@ else:
         else:
             
             # Exibe as atividades para aprovação
+            # MELHORIA DE VISUAL: Ajustar o layout do loop para ser mais compacto
             for idx, row in df_aprovacao.iterrows():
                 
                 # Oculta o metadado de hora bruta para a visualização do gestor
@@ -1195,14 +1250,21 @@ else:
                 # Usa HTML para o badge de status
                 badge_status = f'<span class="status-badge status-{row["status"]}">{row["status"]}</span>'
 
-                col1_d, col2_d, col3_d, col4_d = st.columns([2, 1, 1, 1])
+                # MELHORIA DE VISUAL: Usar 4 colunas para informações e botões
+                col1_d, col2_d, col3_d, col4_d = st.columns([0.4, 0.2, 0.2, 0.2])
                 
                 with col1_d:
-                    
-                    st.markdown(f"**{row['usuario']}** | ID {row['id']} | {badge_status}", unsafe_allow_html=True)
-                    st.markdown(f"**{MESES.get(row['mes'])}/{row['ano']}** | {row['descricao']} ({row['porcentagem']}%)")
-                    st.markdown(f"*Projeto:* {row['projeto']}")
-                    st.markdown(f"*Obs:* {observacao_limpa_gestor if observacao_limpa_gestor else '(Não informada)'}")
+                    # Informações principais em um bloco de Markdown
+                    info_html = f"""
+                    <div style="padding: 10px 0;">
+                        <span style="font-size: 1.1em; font-weight: bold;">{row['usuario']}</span> | ID {row['id']} | {badge_status}<br>
+                        <span style="color: {COR_PRIMARIA}; font-weight: 500;">{MESES.get(row['mes'])}/{row['ano']}</span> | {row['descricao']} ({row['porcentagem']}%)<br>
+                        <span style="font-style: italic;">Projeto: {row['projeto']}</span><br>
+                        <span style="font-size: 0.85em; color: #666;">Obs: {observacao_limpa_gestor if observacao_limpa_gestor else '(Não informada)'}</span>
+                    </div>
+                    """
+                    st.markdown(info_html, unsafe_allow_html=True)
+
                     
                 
                 with col2_d:
@@ -1212,9 +1274,10 @@ else:
                         
                         key=f"apv_{row['id']}", 
                         on_click=handle_status_update, 
-                        args=(row['id'], 'Aprovado')
+                        args=(row['id'], 'Aprovado'),
+                        use_container_width=True
                     )
-                            
+                        
                 
                 with col3_d:
                     # --- USANDO on_click CALLBACK ---
@@ -1223,7 +1286,8 @@ else:
                         
                         key=f"rej_{row['id']}", 
                         on_click=handle_status_update, 
-                        args=(row['id'], 'Rejeitado')
+                        args=(row['id'], 'Rejeitado'),
+                        use_container_width=True
                     )
 
                 
@@ -1233,11 +1297,14 @@ else:
                         "🗑️ Excluir", 
                         key=f"del_a_{row['id']}",
                         on_click=handle_delete,
-                        args=(row['id'],)
+                        args=(row['id'],),
+                        use_container_width=True
                     )
-                            
+                        
                 
-                st.markdown("---")
+                # MELHORIA DE VISUAL: Usar um divisor visual mais limpo
+                st.markdown('<div style="border-bottom: 1px solid #eee; margin: 5px 0 15px 0;"></div>', unsafe_allow_html=True)
+
 
     # ==============================
     # 7.3. Lançar Atividade (Versão Final Completa com Recálculo de Horas)
@@ -1280,135 +1347,282 @@ else:
         # 2. CÁLCULO DE HORAS BRUTAS (para o modo Horas - metadado na 'observacao')
         horas_brutas_ativas = []
         for a in atividades_ativas:
-              hora, _ = extrair_hora_bruta(a.get('observacao', ''))
-              if hora > 0:
-                  # Armazena a observação original COMPLETA para re-encapsulamento
-                  horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
-                  
+             hora, _ = extrair_hora_bruta(a.get('observacao', ''))
+             if hora > 0:
+                 # Armazena a observação original COMPLETA para re-encapsulamento
+                 horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
+                 
         total_horas_existentes = sum(h['hora'] for h in horas_brutas_ativas)
 
         # Tipo de lançamento
-        tipo_lancamento = st.radio(
-            "Tipo de lançamento:",
-            ["Porcentagem", "Horas"],
-            horizontal=True,
-            key="lanc_tipo"
-        )
+        # MELHORIA DE VISUAL: Usar st.tabs para separar a lógica de Porcentagem e Horas e dar um visual mais moderno.
         
-        # --- Exibição de Saldo Adaptada ---
-        if tipo_lancamento == "Porcentagem":
+        tab_porcentagem, tab_horas = st.tabs(["Lançamento por Porcentagem", "Lançamento por Horas"])
+        
+        # Variável de controle de estado para o tipo de lançamento
+        if 'lanc_tipo_aba' not in st.session_state:
+            st.session_state['lanc_tipo_aba'] = "Porcentagem"
+        
+        
+        with tab_porcentagem:
+            st.session_state['lanc_tipo_aba'] = "Porcentagem"
             st.info(
-                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
-                f"📊 **Total já alocado:** {total_existente:.1f}% \n"
-                f"💡 **Saldo restante disponível:** {saldo_restante:.1f}%"
+                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
+                 f"📊 **Total já alocado:** **{total_existente:.1f}%** \n"
+                 f"💡 **Saldo restante disponível:** **{saldo_restante:.1f}%**"
             )
-        else: # Tipo de lançamento é Horas
-            st.info(
-                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
-                f"⏳ **Horas brutas já lançadas:** {total_horas_existentes:.1f} hrs \n"
-                f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
+            # Input de quantidade dentro da aba
+            qtd_lancamentos_p = st.number_input(
+                "Quantos lançamentos deseja adicionar?",
+                min_value=1,
+                max_value=20,
+                value=st.session_state.get("lanc_qtd_p", 1),
+                step=1,
+                key="lanc_qtd_p"
             )
+            tipo_lancamento = "Porcentagem"
+            qtd_lancamentos = qtd_lancamentos_p
             
-        # Quantos lançamentos
-        qtd_lancamentos = st.number_input(
-            "Quantos lançamentos deseja adicionar?",
-            min_value=1,
-            max_value=20,
-            value=st.session_state.get("lanc_qtd", 1), # Mantém o valor
-            step=1,
-            key="lanc_qtd"
-        )
-        
+        with tab_horas:
+            st.session_state['lanc_tipo_aba'] = "Horas"
+            st.info(
+                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
+                 f"⏳ **Horas brutas já lançadas:** **{total_horas_existentes:.1f} hrs** \n"
+                 f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
+            )
+            # Input de quantidade dentro da aba
+            qtd_lancamentos_h = st.number_input(
+                "Quantos lançamentos deseja adicionar?",
+                min_value=1,
+                max_value=20,
+                value=st.session_state.get("lanc_qtd_h", 1), 
+                step=1,
+                key="lanc_qtd_h"
+            )
+            tipo_lancamento = "Horas"
+            qtd_lancamentos = qtd_lancamentos_h
+
+        # Ajusta o 'tipo_lancamento' baseado em qual aba foi clicada
+        if st.session_state['lanc_tipo_aba'] == "Horas":
+            tipo_lancamento = "Horas"
+            qtd_lancamentos = st.session_state.get("lanc_qtd_h", 1)
+        else:
+            tipo_lancamento = "Porcentagem"
+            qtd_lancamentos = st.session_state.get("lanc_qtd_p", 1)
+
+
         st.markdown("---")
 
         # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
         lancamentos = []
-        for i in range(qtd_lancamentos):
-            # Início do Bloco de Lançamento
-            st.markdown(f"### Lançamento {i+1}") # Título para o bloco
-            
-            # --- INÍCIO DA ALTERAÇÃO PARA BLOCOS VERTICAIS ---
-            # Campos um embaixo do outro, ocupando a largura total (sem colunas internas)
-            
-            descricao = st.selectbox(
-                f"Descrição",
-                DESCRICOES_SELECT,
-                key=f"desc_{i}",
-                label_visibility="visible"
-            )
-            projeto = st.selectbox(
-                f"Projeto",
-                PROJETOS_SELECT,
-                key=f"proj_{i}",
-                label_visibility="visible"
-            )
-
-            if tipo_lancamento == "Porcentagem":
-                valor = st.number_input(
-                    f"Porcentagem (%)",
-                    min_value=0.0,
-                    max_value=100.0,
-                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
-                    step=1.0,
-                    key=f"valor_{i}",
+        # MELHORIA DE VISUAL: Encapsular o formulário de lançamentos em um único Form para melhor UX
+        with st.form("form_multi_lancamentos"):
+            for i in range(qtd_lancamentos):
+                # Início do Bloco de Lançamento
+                st.markdown(f"### Lançamento {i+1}") # Título para o bloco
+                
+                # Campos um embaixo do outro, ocupando a largura total (sem colunas internas)
+                
+                descricao = st.selectbox(
+                    f"Descrição",
+                    DESCRICOES_SELECT,
+                    key=f"desc_{i}",
                     label_visibility="visible"
                 )
-            else: # Horas
-                valor = st.number_input(
-                    f"Horas",
-                    min_value=0.0,
-                    max_value=200.0,
-                    value=st.session_state.get(f"valor_{i}", 0.0), # Mantém o valor
-                    step=0.5,
-                    key=f"valor_{i}",
+                projeto = st.selectbox(
+                    f"Projeto",
+                    PROJETOS_SELECT,
+                    key=f"proj_{i}",
                     label_visibility="visible"
                 )
 
-            # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
-            observacao = st.text_area(f"Observação (Opcional)", 
-                                       key=f"obs_{i}", 
-                                       value=st.session_state.get(f"obs_{i}", ""))
-            
-            # Divisor sutil entre os blocos
-            if i < qtd_lancamentos - 1:
-                st.markdown('<div class="vertical-block-separator"></div>', unsafe_allow_html=True)
-            
-            # --- FIM DA ALTERAÇÃO PARA BLOCOS VERTICAIS ---
+                if tipo_lancamento == "Porcentagem":
+                    valor = st.number_input(
+                        f"Porcentagem (%)",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=st.session_state.get(f"valor_{i}", 0.0),
+                        step=1.0,
+                        key=f"valor_{i}",
+                        label_visibility="visible"
+                    )
+                else: # Horas
+                    valor = st.number_input(
+                        f"Horas",
+                        min_value=0.0,
+                        max_value=200.0,
+                        value=st.session_state.get(f"valor_{i}", 0.0),
+                        step=0.5,
+                        key=f"valor_{i}",
+                        label_visibility="visible"
+                    )
 
-            # Armazena os dados atuais do estado de sessão
-            lancamentos.append({
-                "descricao": descricao,
-                "projeto": projeto,
-                "valor": valor,
-                "observacao": observacao
-            })
+                # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
+                observacao = st.text_area(f"Observação (Opcional)", 
+                                           key=f"obs_{i}", 
+                                           value=st.session_state.get(f"obs_{i}", ""))
+                
+                # Divisor sutil entre os blocos
+                if i < qtd_lancamentos - 1:
+                    st.markdown('<div class="vertical-block-separator"></div>', unsafe_allow_html=True)
+                
+                # --- FIM DA ALTERAÇÃO PARA BLOCOS VERTICAIS ---
 
-        # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (Atualização em tempo real) ---
+                # Armazena os dados atuais do estado de sessão
+                lancamentos.append({
+                    "descricao": descricao,
+                    "projeto": projeto,
+                    "valor": valor,
+                    "observacao": observacao
+                })
+
+            # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
+            # O processamento e validação agora ocorrem quando o botão de submit é clicado
+            submitted = st.form_submit_button("💾 Salvar Lançamentos", use_container_width=True)
+
+            if submitted:
+                if mes_num is None:
+                    st.error("Selecione um mês válido.")
+                    st.stop()
+
+                # Revalidação de campos e totais antes de salvar
+                # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
+                lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
+                
+                if not lancamentos_validos:
+                    st.error("Nenhum lançamento válido (com valor > 0) para salvar.")
+                    st.stop()
+                    
+                for l in lancamentos_validos:
+                    if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
+                        st.error("Todos os lançamentos válidos devem ter uma Descrição e um Projeto selecionados.")
+                        st.stop()
+                    
+                # Prepara variáveis de cálculo
+                soma_nova = 0
+                total_geral_horas = total_horas_existentes 
+                
+                # Simula o cálculo da pré-visualização para a validação final
+                for l in lancamentos_validos:
+                    if tipo_lancamento == "Horas":
+                         soma_nova += l["valor"]
+                    else:
+                         soma_nova += l["valor"]
+
+                if tipo_lancamento == "Horas":
+                    total_geral_horas += soma_nova
+                    if total_geral_horas <= 0:
+                         st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
+                         st.stop()
+                    # Recalculo proporcional e atribuição dos valores finais
+                    for l in lancamentos_validos:
+                         porcent = (l["valor"] / total_geral_horas) * 100
+                         l["porcentagem_final"] = round(porcent, 2)
+                         obs_real = l["observacao"] if l["observacao"] else ""
+                         l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]"  # CRÍTICO: Armazena o metadado
+                    total_final = 100.0
+                else: # Porcentagem
+                    total_final = total_existente + soma_nova
+                    # Atribuição dos valores finais para porcentagem
+                    for l in lancamentos_validos:
+                        l["porcentagem_final"] = l["valor"]
+                        l["observacao_final_db"] = l["observacao"]
+                    
+                    if total_final > 100.0 + 0.001:
+                        st.error(
+                             f"⚠️ O total de alocação excede o limite de 100% para {mes_select}/{ano_select}. Por favor, ajuste os valores."
+                        )
+                        st.stop()
+                
+                # Lógica de Recálculo e Update (Apenas para o modo HORAS)
+                recalcular_e_atualizar = (tipo_lancamento == "Horas" and total_geral_horas > 0)
+                
+                if recalcular_e_atualizar:
+                    
+                    # 1. ATUALIZA AS ATIVIDADES EXISTENTES NO DB
+                    for h in horas_brutas_ativas:
+                        hora_antiga = h['hora']
+                        id_antigo = h['id']
+                        
+                        # Recalcula a porcentagem proporcional
+                        nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100))
+                        
+                        # A observação não precisa ser atualizada, apenas a porcentagem
+                        if not atualizar_porcentagem_atividade(id_antigo, nova_porcentagem_recalculada):
+                            st.error(f"❌ Erro crítico ao recalcular a atividade ID {id_antigo}.")
+                            st.stop()
+
+                # 2. SALVA OS NOVOS LANÇAMENTOS
+                sucesso = True
+                for l in lancamentos_validos:
+                    porcent_final = int(round(l["porcentagem_final"]))
+                    # A observação já está formatada corretamente com o metadado no modo Horas
+                    obs_final = l.get("observacao_final_db", l.get("observacao", ''))
+                    
+                    ok = salvar_atividade(
+                        st.session_state["usuario"],
+                        mes_num,
+                        ano_select,
+                        l["descricao"],
+                        l["projeto"],
+                        porcent_final, 
+                        obs_final
+                    )
+                    if not ok:
+                        sucesso = False
+
+                if sucesso:
+                    carregar_dados.clear()
+                    
+                    # ==================================
+                    # LIMPEZA DE CAMPOS APÓS SALVAR (CORRIGIDO)
+                    # ==================================
+                    # Limpa campos dinâmicos (lançamentos)
+                    for i in range(qtd_lancamentos):
+                        for key_prefix in ["desc_", "proj_", "valor_", "obs_"]:
+                            key = f"{key_prefix}{i}"
+                            if key in st.session_state:
+                                del st.session_state[key]
+                                
+                    # Limpeza de quantidade
+                    if tipo_lancamento == "Porcentagem" and "lanc_qtd_p" in st.session_state:
+                         del st.session_state["lanc_qtd_p"]
+                    if tipo_lancamento == "Horas" and "lanc_qtd_h" in st.session_state:
+                         del st.session_state["lanc_qtd_h"]
+                    
+                    
+                    if total_final == 100:
+                        st.balloons()
+                        
+                    total_lanc_msg = "100%" if recalcular_e_atualizar else f"{total_final:.1f}%"
+                    
+                    st.success(
+                        f"✅ **{len(lancamentos_validos)}** lançamentos salvos. \n"
+                        f"📊 Total alocado em {mes_select}/{ano_select}: **{total_lanc_msg}**."
+                    )
+                    st.rerun()
+                else:
+                    st.error("❌ Ocorreu um erro ao salvar os lançamentos. Verifique os dados.")
+        
+        # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (Atualização em tempo real, fora do form) ---
         
         # 1. PROCESSAMENTO DOS DADOS PARA PREVIEW E VALIDAÇÃO
+        # Repete a lógica de pré-cálculo para o preview (forçado)
         preview_data = []
-        # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
-        lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
+        lancamentos_validos_preview = [l for l in lancamentos if l["valor"] > 0]
         soma_nova = 0
-        total_geral_horas = total_horas_existentes # Valor base
-        
-        if lancamentos_validos:
+        total_geral_horas_preview = total_horas_existentes 
+
+        if lancamentos_validos_preview:
             
             if tipo_lancamento == "Horas":
                 # LÓGICA DE RECÁLCULO PROPORCIONAL
+                total_horas_novas = sum(l["valor"] for l in lancamentos_validos_preview)
+                total_geral_horas_preview += total_horas_novas # Total horas: existentes + novas
                 
-                total_horas_novas = sum(l["valor"] for l in lancamentos_validos)
-                total_geral_horas += total_horas_novas # Total horas: existentes + novas
-                
-                if total_geral_horas > 0:
-                    for l in lancamentos_validos:
-                        porcent = (l["valor"] / total_geral_horas) * 100
-                        l["porcentagem_final"] = round(porcent, 2)
-                        
-                        # CRÍTICO: Armazena o metadado de hora bruta E a observação real, ocultando a hora bruta.
-                        obs_real = l["observacao"] if l["observacao"] else ""
-                        l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]" 
-                        
+                if total_geral_horas_preview > 0:
+                    for l in lancamentos_validos_preview:
+                        porcent = (l["valor"] / total_geral_horas_preview) * 100
                         preview_data.append({
                             "Descrição": l["descricao"],
                             "Projeto": l["projeto"],
@@ -1419,25 +1633,22 @@ else:
                 
             else: # Porcentagem
                 # LÓGICA DE SOMA SIMPLES (NÃO PROPORCIONAL)
-                for l in lancamentos_validos:
-                    l["porcentagem_final"] = l["valor"] # No modo porcentagem, o valor é a porcentagem final
-                    l["observacao_final_db"] = l["observacao"] # Mantém a observação original
+                for l in lancamentos_validos_preview:
                     preview_data.append({
                         "Descrição": l["descricao"],
                         "Projeto": l["projeto"],
                         "Porcentagem": l["valor"]
                     })
-                soma_nova = sum(l["valor"] for l in lancamentos_validos)
+                soma_nova = sum(l["valor"] for l in lancamentos_validos_preview)
 
         # 2. CÁLCULO DOS TOTAIS FINAIS (EM PORCENTAGEM)
         if tipo_lancamento == "Porcentagem":
-            total_final = total_existente + soma_nova
-            saldo_final = max(0, 100 - total_final)
+            total_final_preview = total_existente + soma_nova
+            saldo_final_preview = max(0, 100 - total_final_preview)
         else:
-            # No modo Horas, o total final será sempre 100% (assumindo que o DB já foi recalculado)
-            total_final = 100.0
-            saldo_final = 0.0
-        
+            total_final_preview = 100.0 if total_geral_horas_preview > 0 else 0.0
+            saldo_final_preview = max(0, 100 - total_final_preview)
+            
         st.subheader("📊 Pré-visualização dos lançamentos")
         
         if preview_data:
@@ -1458,121 +1669,23 @@ else:
                 st.plotly_chart(fig_preview, use_container_width=True)
 
             with col_info:
+                # MELHORIA DE VISUAL: Usar st.metric para destaque
                 if tipo_lancamento == "Horas":
-                    # No modo horas, a porcentagem do preview é o que será salvo no DB
-                    st.markdown(f"**Total horas (Mês + Novo):** {total_geral_horas:.1f} hrs \n")
-                    st.markdown(f"**Representa:** {soma_nova:.1f}% (do total final)")
-                    if total_geral_horas == 0:
+                    st.metric(label="Total Horas Brutas (Mês + Novo)", value=f"{total_geral_horas_preview:.1f} hrs")
+                    st.metric(label="Total % para Recálculo", value=f"{soma_nova:.1f}%")
+                    if total_geral_horas_preview == 0:
                         st.warning("Adicione horas (acima de zero) para calcular a proporção.")
                 else:
-                    st.markdown(
-                        f"**Total novo a ser lançado:** {soma_nova:.1f}% \n"
-                        f"**Total atual + novo:** {total_final:.1f}% \n"
-                        f"**Saldo restante após salvar:** {saldo_final:.1f}%"
-                    )
-                    if total_final > 100:
+                    st.metric(label="Total Novo a Ser Lançado", value=f"{soma_nova:.1f}%")
+                    st.metric(label="Total Atual + Novo", value=f"{total_final_preview:.1f}%")
+                    st.metric(label="Saldo Restante", value=f"{saldo_final_preview:.1f}%")
+
+                    if total_final_preview > 100:
                         st.error("⚠️ O total projetado ultrapassa 100%. Ajuste os valores antes de salvar.")
 
         else:
             st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
-
-        # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
-        if st.button("💾 Salvar Lançamentos", key="btn_save_multi_lanc"):
-            if mes_num is None:
-                st.error("Selecione um mês válido.")
-                st.stop()
-
-            # Revalidação de campos e totais antes de salvar
-            if not lancamentos_validos:
-                st.error("Nenhum lançamento válido (com valor > 0) para salvar.")
-                st.stop()
-                
-            for l in lancamentos_validos:
-                if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
-                    st.error("Todos os lançamentos válidos devem ter uma Descrição e um Projeto selecionados.")
-                    st.stop()
-            
-            # Validação Final: Modo PORCENTAGEM
-            if tipo_lancamento == "Porcentagem":
-                if total_final > 100.0 + 0.001:
-                    st.error(
-                        f"⚠️ O total de alocação excede o limite de 100% para {mes_select}/{ano_select}. Por favor, ajuste os valores."
-                    )
-                    st.stop()
-            
-            # Validação Final: Modo HORAS (Garante que há horas para calcular)
-            if tipo_lancamento == "Horas" and total_geral_horas <= 0:
-                st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
-                st.stop()
-
-            # Lógica de Recálculo e Update (Apenas para o modo HORAS)
-            recalcular_e_atualizar = (tipo_lancamento == "Horas" and total_geral_horas > 0)
-            
-            if recalcular_e_atualizar:
-                
-                # 1. ATUALIZA AS ATIVIDADES EXISTENTES NO DB
-                for h in horas_brutas_ativas:
-                    hora_antiga = h['hora']
-                    id_antigo = h['id']
-                    
-                    # Recalcula a porcentagem proporcional
-                    nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100))
-                    
-                    # A observação não precisa ser atualizada, apenas a porcentagem
-                    if not atualizar_porcentagem_atividade(id_antigo, nova_porcentagem_recalculada):
-                        st.error(f"❌ Erro crítico ao recalcular a atividade ID {id_antigo}.")
-                        st.stop()
-
-            # 2. SALVA OS NOVOS LANÇAMENTOS
-            sucesso = True
-            for l in lancamentos_validos:
-                porcent_final = int(round(l["porcentagem_final"]))
-                # A observação já está formatada corretamente com o metadado no modo Horas
-                obs_final = l.get("observacao_final_db", l.get("observacao", ''))
-                
-                ok = salvar_atividade(
-                    st.session_state["usuario"],
-                    mes_num,
-                    ano_select,
-                    l["descricao"],
-                    l["projeto"],
-                    porcent_final, 
-                    obs_final
-                )
-                if not ok:
-                    sucesso = False
-
-            if sucesso:
-                carregar_dados.clear()
-                
-                # ==================================
-                # LIMPEZA DE CAMPOS APÓS SALVAR (CORRIGIDO)
-                # ==================================
-                # Limpa campos dinâmicos (lançamentos)
-                for i in range(qtd_lancamentos):
-                    for key_prefix in ["desc_", "proj_", "valor_", "obs_"]:
-                        key = f"{key_prefix}{i}"
-                        if key in st.session_state:
-                            del st.session_state[key]
-                            
-                # CORREÇÃO: Remove a chave do widget de quantidade em vez de atribuir.
-                if "lanc_qtd" in st.session_state:
-                    del st.session_state["lanc_qtd"]
-                
-                # O estado 'lanc_tipo' é mantido para que o usuário continue no modo Horas/Porcentagem.
-
-                if tipo_lancamento == "Porcentagem" and total_final == 100:
-                    st.balloons()
-                    
-                total_lanc_msg = "100%" if recalcular_e_atualizar else f"{total_final:.1f}%"
-                
-                st.success(
-                    f"✅ {len(lancamentos_validos)} lançamentos salvos. \n"
-                    f"📊 Total alocado em {mes_select}/{ano_select}: **{total_lanc_msg}**."
-                )
-                st.rerun()
-            else:
-                st.error("❌ Ocorreu um erro ao salvar os lançamentos. Verifique os dados.")
+        
 
 
     # ==============================
@@ -1585,9 +1698,10 @@ else:
         mes_select = col_mes.selectbox(
             "Mês",
             MESES_SELECT,
-            index=list(MESES.values()).index(MESES[datetime.today().month]) + 1
+            index=list(MESES.values()).index(MESES[datetime.today().month]) + 1,
+            key="minhas_mes_select"
         )
-        ano_select = col_ano.selectbox("Ano", ANOS, index=ANOS.index(datetime.today().year))
+        ano_select = col_ano.selectbox("Ano", ANOS, index=ANOS.index(datetime.today().year), key="minhas_ano_select")
         mes_num = next((k for k, v in MESES.items() if v == mes_select), None)
 
         if mes_num:
@@ -1607,20 +1721,38 @@ else:
         total_alocado = sum(a["porcentagem"] for a in atividades_ativas_mes)
         saldo_restante = max(0, 100 - total_alocado)
 
-        st.success(f"📊 **Total alocado:** {total_alocado:.1f}%  | 💡 Saldo restante: {saldo_restante:.1f}%**")
+        # MELHORIA DE VISUAL: Usar colunas para métricas e gráfico
+        col_m1, col_m2 = st.columns(2)
+        
+        with col_m1:
+             st.metric(label="Total Alocado no Mês", value=f"{total_alocado:.1f}%", delta=f"{saldo_restante:.1f}%", delta_color="inverse")
+        with col_m2:
+             st.metric(label="Total de Lançamentos", value=len(atividades), delta=f"Ativas: {len(atividades_ativas_mes)}")
+
 
         # Gráfico comparativo (alocado vs saldo)
+        df_saldo = pd.DataFrame({
+             'Categoria': ["Alocado", "Disponível"],
+             'Porcentagem': [total_alocado, saldo_restante]
+        })
+        # MELHORIA DE VISUAL: Gráfico de Pizza mais clean
         fig_saldo = px.pie(
-            names=["Alocado", "Disponível"],
-            values=[total_alocado, saldo_restante],
+            df_saldo,
+            names="Categoria",
+            values="Porcentagem",
             title="Visão geral do mês",
-            color_discrete_sequence=["#5B8CFF", "#E0E0E0"]
+            hole=.6,
+            color_discrete_sequence=[COR_PRIMARIA, "#E0E0E0"] # Cores do tema
         )
         fig_saldo.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
+        fig_saldo.update_layout(showlegend=True, margin=dict(t=30, b=0, l=0, r=0))
         st.plotly_chart(fig_saldo, use_container_width=True)
 
+        st.markdown("---")
+
+        col_opcoes_a, col_opcoes_b = st.columns(2)
         # Botão para copiar mês anterior
-        if st.button("📋 Copiar lançamentos do mês anterior"):
+        if col_opcoes_a.button("📋 Copiar lançamentos do mês anterior", use_container_width=True):
             mes_anterior = mes_num - 1 if mes_num > 1 else 12
             ano_ref = ano_select if mes_num > 1 else ano_select - 1
             antigos = carregar_atividades_usuario(st.session_state["usuario"], mes_anterior, ano_ref)
@@ -1662,21 +1794,23 @@ else:
         df_export['observacao'] = df_export['observacao'].apply(lambda x: extrair_hora_bruta(x)[1])
         buffer = io.BytesIO()
         df_export.to_excel(buffer, index=False)
-        st.download_button(
+        col_opcoes_b.download_button(
             label="📤 Exportar atividades para Excel",
             data=buffer.getvalue(),
             file_name=f"atividades_{mes_select}_{ano_select}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
         )
 
         # Exibir gráfico detalhado
         df_graf = pd.DataFrame(atividades_ativas_mes)
         df_graf = df_graf.groupby("descricao", as_index=False)["porcentagem"].sum()
+        # MELHORIA DE VISUAL: Usar cor mais clara no Plotly
         fig_graf = px.pie(
             df_graf,
             names="descricao",
             values="porcentagem",
-            title="Distribuição atual das atividades",
+            title="Distribuição atual das atividades (ativas)",
             hole=.4,
             color_discrete_sequence=SINAPSIS_PALETTE
         )
@@ -1684,7 +1818,7 @@ else:
         st.plotly_chart(fig_graf, use_container_width=True)
 
         # Exibir lista com edição
-        st.subheader("✏️ Editar minhas atividades")
+        st.subheader("✏️ Editar ou Excluir Lançamentos")
         for idx, a in enumerate(atividades):
             
             # Extrai a hora bruta e a observação limpa
@@ -1694,7 +1828,11 @@ else:
             status_badge = f'<span class="status-badge status-{a["status"]}">{a["status"]}</span>'
             
             # Conteúdo do cabeçalho que queremos estilizar
-            cabecalho_expander = f"📌 {a['descricao']} | {a['projeto']} ({a['porcentagem']}%) | {status_badge}"
+            # MELHORIA DE VISUAL: Adicionar um icone de caneta se for editável
+            can_edit = a['status'] not in ['Aprovado', 'Rejeitado']
+            edit_icon = "✏️" if can_edit else "🔒"
+            
+            cabecalho_expander = f"{edit_icon} {a['descricao']} | {a['projeto']} ({a['porcentagem']}%) | {status_badge}"
 
             # CORREÇÃO HTML: Usar expander sem título e renderizar o título dentro
             with st.expander("", expanded=False):
@@ -1734,11 +1872,15 @@ else:
                     key=f"obs_minhas_{idx}",
                     disabled=disabled_edit
                 )
+                
+                # MELHORIA DE VISUAL: Mostrar a hora bruta se existir
+                if hora_bruta > 0:
+                     st.caption(f"**Horas Brutas Registradas (Metadado):** {hora_bruta:.1f} hrs")
 
                 col_salvar, col_excluir = st.columns(2)
                 with col_salvar:
                     # O botão Salvar só é habilitado se for Pendente
-                    if st.button(f"💾 Salvar alterações ({idx})", key=f"btn_salvar_minhas_{idx}", disabled=disabled_edit):
+                    if st.button(f"💾 Salvar alterações ({idx})", key=f"btn_salvar_minhas_{idx}", disabled=disabled_edit, use_container_width=True):
                         
                         # --- VERIFICAÇÃO DE 100% NA EDIÇÃO (SIMPLES) ---
                         total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
@@ -1757,18 +1899,18 @@ else:
                         ok = atualizar_atividade(a["id"], nova_porcentagem, observacao_para_salvar)
                         if ok:
                             carregar_dados.clear()
-                            st.success("✅ Atividade atualizada com sucesso!")
+                            st.toast("✅ Atividade atualizada com sucesso!", icon="✅")
                             st.rerun()
                         
                         else:
                             st.error("❌ Erro ao atualizar atividade.")
                 with col_excluir:
-                    if st.button(f"🗑️ Excluir ({idx})", key=f"btn_excluir_minhas_{idx}"):
+                    if st.button(f"🗑️ Excluir ({idx})", key=f"btn_excluir_minhas_{idx}", use_container_width=True):
                         ok = excluir_atividade(a["id"])
 
                         if ok:
                             carregar_dados.clear()
-                            st.success("🗑️ Atividade excluída!")
+                            st.toast("🗑️ Atividade excluída!", icon="🗑️")
                             st.rerun()
                         
                         else:
@@ -1796,6 +1938,9 @@ else:
             meses_unicos = sorted(atividades_df['data_mes'].unique(), reverse=True)
             mes_selecionado_admin = col_admin2.selectbox("Filtrar por Mês/Ano", ["Todos"] + meses_unicos)
             
+            # MELHORIA DE VISUAL: Filtro por Status na Visão Admin
+            status_filtro_admin = col_admin3.selectbox("Filtrar por Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"], key="status_filtro_admin")
+            
             df_consolidado = atividades_df.copy()
 
             if usuario_selecionado != "Todos":
@@ -1804,11 +1949,15 @@ else:
             if mes_selecionado_admin != "Todos":
                 df_consolidado = df_consolidado[df_consolidado['data_mes'] == mes_selecionado_admin]
 
+            if status_filtro_admin != "Todos":
+                 df_consolidado = df_consolidado[df_consolidado['status'] == status_filtro_admin]
+
             st.markdown("---")
             
             if not df_consolidado.empty:
                 st.subheader("Visualização dos Dados Filtrados")
                 
+                # --- GRÁFICO ---
                 df_mensal = df_consolidado.groupby(['data_mes'])['porcentagem'].sum().reset_index()
                 
                 df_mensal.columns = ['Mês/Ano', 'Total Alocado (%)']
@@ -1822,18 +1971,37 @@ else:
                     color_continuous_scale=px.colors.sequential.Plotly3,
                     height=400
                 )
-                fig_mensal.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="100% Ideal", annotation_position="top left")
+                fig_mensal.add_hline(y=100, line_dash="dash", line_color=COR_SECUNDARIA, annotation_text="100% Ideal", annotation_position="top left")
                 st.plotly_chart(fig_mensal, use_container_width=True)
                 
                 st.subheader("Tabela de Dados Detalhada")
                 
                 # Limpa as observações do metadado antes de exibir
-                df_consolidado['observacao'] = df_consolidado['observacao'].apply(lambda x: extrair_hora_bruta(x)[1])
-                st.dataframe(df_consolidado.drop(columns=['data_mes']), use_container_width=True)
+                df_consolidado_clean = df_consolidado.copy()
+                df_consolidado_clean['observacao'] = df_consolidado_clean['observacao'].apply(lambda x: extrair_hora_bruta(x)[1])
+                
+                # MELHORIA DE VISUAL: Exibir a tabela com o Data Editor para melhor interação
+                st.data_editor(
+                    df_consolidado_clean.drop(columns=['data_mes']), 
+                    use_container_width=True,
+                    hide_index=True,
+                    column_order=['usuario', 'mes', 'ano', 'descricao', 'projeto', 'porcentagem', 'status', 'observacao'],
+                    column_config={
+                        'usuario': st.column_config.TextColumn("Usuário"),
+                        'mes': st.column_config.NumberColumn("Mês"),
+                        'ano': st.column_config.NumberColumn("Ano"),
+                        'descricao': st.column_config.TextColumn("Descrição"),
+                        'projeto': st.column_config.TextColumn("Projeto"),
+                        'porcentagem': st.column_config.NumberColumn("Porcentagem (%)"),
+                        'status': st.column_config.TextColumn("Status"),
+                        'observacao': st.column_config.TextColumn("Observação", width="large")
+                    },
+                    disabled=True
+                )
 
                 st.markdown("---")
                 
-                df_download = df_consolidado.drop(columns=['id', 'data_mes']).rename(columns={
+                df_download = df_consolidado_clean.drop(columns=['id', 'data_mes']).rename(columns={
                     'usuario': 'Usuário',
                     'data': 'Data (Dia 1 do Mês)',
                     'mes': 'Mês',
@@ -1853,7 +2021,8 @@ else:
                     label="⬇️ Baixar Dados Filtrados (Excel)",
                     data=buffer,
                     file_name=f"atividades_consolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
                 )
 
             else:
@@ -1865,8 +2034,7 @@ else:
     elif aba == "Importar Dados" and st.session_state["admin"]:
         st.header("⬆️ Importação de Dados em Massa (Admin)")
         st.warning(
-            "⚠️ **Aviso de Formato:** Seu arquivo deve conter uma coluna **'Data'** no formato Mês/Ano (MM/AAAA) ou Dia/Mês/Ano (DD/MM/AAAA). "
-            "A porcentagem será multiplicada por 100 (ex: 0.25 -> 25%). **O status será definido como 'Pendente'.**"
+            "⚠️ **Aviso de Formato:** Seu arquivo deve conter as colunas: **'Nome'**, **'Data'** (Mês/Ano ou DD/MM/AAAA), **'Descrição'**, **'Projeto'**, **'Porcentagem'** (valor decimal, ex: 0.25 para 25%) e **'Observação (Opcional)'**. **O status será definido como 'Pendente'.**"
             
         )
         
@@ -1930,7 +2098,7 @@ else:
                 
                 df_import.columns = df_import.columns.str.strip().str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8').str.lower()
                 
-                colunas_renomear = {origem.lower(): destino for origem, destino in colunas_mapeamento_origem.items()}
+                colunas_renomear = {origem.lower().strip(): destino for origem, destino in colunas_mapeamento_origem.items()}
                 
                 if 'mês' in colunas_renomear: del colunas_renomear['mês']
                 if 'ano' in colunas_renomear: del colunas_renomear['ano']
@@ -1938,10 +2106,18 @@ else:
                 df_import.rename(columns=colunas_renomear, inplace=True)
 
                 colunas_base_necessarias = ['usuario', 'data_str', 'descricao', 'projeto', 'porcentagem']
-                for col in colunas_base_necessarias:
-                    if col not in df_import.columns:
-                        
-                        raise KeyError(f"A coluna **'{col.capitalize()}'** não foi encontrada no arquivo após a renomeação. Verifique se o nome do cabeçalho está correto.")
+                # Verifica a presença de 'data_str' (nome temporário para data)
+                if 'data_str' not in df_import.columns:
+                     # Tenta encontrar a coluna 'data'
+                     if 'data' in df_import.columns:
+                          df_import.rename(columns={'data': 'data_str'}, inplace=True)
+                     else:
+                          raise KeyError(f"A coluna **'Data'** (ou 'data_str') não foi encontrada no arquivo. Verifique se o nome do cabeçalho está correto.")
+                          
+                # Verifica as outras colunas
+                for col_name, col_dest in colunas_mapeamento_origem.items():
+                    if col_dest != 'data_str' and col_dest not in df_import.columns:
+                        raise KeyError(f"A coluna **'{col_name}'** ('{col_dest}') não foi encontrada no arquivo após a renomeação. Verifique se o nome do cabeçalho está correto.")
 
                 # --- PRÉ-CADASTRO DE USUÁRIOS ---
                 df_import['usuario'] = df_import['usuario'].astype(str).str.strip()
@@ -1965,8 +2141,14 @@ else:
                     
                     
                         # --- Limpeza e Transformação dos Dados de Atividade ---
+                    # Tenta converter a data, primeiro com dayfirst=True
                     df_import['data'] = pd.to_datetime(df_import['data_str'], errors='coerce', dayfirst=True)
+                    # Se houver muitos NaT, tenta com dayfirst=False (assumindo formato US)
+                    if df_import['data'].isna().sum() > len(df_import) * 0.5:
+                        df_import['data'] = pd.to_datetime(df_import['data_str'], errors='coerce', dayfirst=False)
+                        
                     df_import['porcentagem'] = pd.to_numeric(df_import['porcentagem'], errors='coerce')
+                    
                     
                     
                     
@@ -1978,7 +2160,9 @@ else:
                     
                     
                     
-                    df_import['porcentagem'] = (df_import['porcentagem'] * 100).round().astype(int)
+                    
+                    # MELHORIA DE VISUAL: Arredondar usando round(0)
+                    df_import['porcentagem'] = (df_import['porcentagem'] * 100).round(0).astype(int)
                     
                     if 'observacao' in df_import.columns:
                         df_import['observacao'].fillna('', inplace=True)
@@ -1995,7 +2179,7 @@ else:
 
                     st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades. ({df_import.shape[0]} linhas válidas mantidas.)")
                     
-                    if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final"):
+                    if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final", use_container_width=True):
                         with st.spinner('Importando dados de atividades em massa...'):
                             
                             linhas_inseridas, mensagem = bulk_insert_atividades(df_para_inserir)
@@ -2004,7 +2188,7 @@ else:
                         
                         
                         if linhas_inseridas > 0:
-                            st.success(f"🎉 {linhas_inseridas} registros de atividades importados com sucesso!")
+                            st.success(f"🎉 **{linhas_inseridas}** registros de atividades importados com sucesso!")
                         else:
                             
                             st.error(mensagem)
@@ -2014,4 +2198,6 @@ else:
             except KeyError as e:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
+                # MELHORIA DE VISUAL: Exibir a exceção completa
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+                # st.exception(e) # Pode ser útil para debug em desenvolvimento
