@@ -401,8 +401,8 @@ def carregar_dados():
         
     except Exception as e:
         # Lógica de migração de status
-        if 'column "status" does exist' in str(e): # Corrigido o erro de lógica: deve ser "does not exist"
-             # No caso de erro, apenas retorna DataFrames vazios ou continua a lógica de fallback
+        if 'column "status" does not exist' in str(e):
+             # Continua a lógica de fallback
             pass
 
         try:
@@ -1821,7 +1821,7 @@ else:
                 
                 col_desc, col_proj, col_perc = st.columns([4, 4, 2])
                 
-                # Campos de Edição (agora incluem Descrição e Projeto)
+                # Campos de Edição
                 
                 # Permite a edição do texto, mas com opções do seletor original
                 nova_descricao = col_desc.selectbox(
@@ -1859,11 +1859,11 @@ else:
                 
                 if hora_bruta > 0:
                      st.caption(f"**Horas Brutas Registradas (Metadado):** {hora_bruta:.1f} hrs")
-
-                col_salvar, col_excluir = st.columns(2)
                 
-                # Lógica de Salvar
-                if col_salvar.form_submit_button(f"💾 Salvar alterações", disabled=disabled_edit, use_container_width=True):
+                # O BOTÃO SALVAR AGORA É O st.form_submit_button (O ÚNICO PERMITIDO NO FORM)
+                submitted = st.form_submit_button(f"💾 Salvar alterações", disabled=disabled_edit, use_container_width=True)
+
+                if submitted:
                     
                     # Validação 100%
                     total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
@@ -1887,11 +1887,22 @@ else:
                         st.rerun()
                     else:
                         st.error("❌ Erro ao atualizar atividade.")
-                
-                # Botão de Excluir (Fora do form de edição, mas dentro do bloco visual)
-                if col_excluir.button(f"🗑️ Excluir Lançamento", key=f"btn_excluir_minhas_{a['id']}", use_container_width=True):
-                    handle_delete(a["id"]) # Chama o callback de exclusão
             
+            # 3. Botão de Excluir (FORA DO st.form - CORRIGIDO O ERRO DE API)
+            col_filler, col_excluir_btn = st.columns([1, 1])
+            
+            with col_excluir_btn:
+                # Agora é um st.button normal (não um form_submit_button)
+                if st.button(
+                    f"🗑️ Excluir Lançamento", 
+                    key=f"btn_excluir_minhas_{a['id']}", 
+                    on_click=handle_delete, 
+                    args=(a["id"],),
+                    use_container_width=True
+                ):
+                    # A função handle_delete já faz o trabalho e o st.rerun
+                    pass 
+
             st.markdown('<div style="border-bottom: 1px solid #ddd; margin: 15px 0 15px 0;"></div>', unsafe_allow_html=True)
 
 
@@ -2013,7 +2024,7 @@ else:
     elif aba == "Importar Dados" and st.session_state["admin"]:
         st.header("⬆️ Importação de Dados em Massa (Admin)")
         st.warning(
-            "⚠️ **Aviso de Formato:** Seu arquivo deve conter as colunas: **'Nome'**, **'Data'** (Mês/Ano ou DD/MM/AAAA), **'Descrição'**, **'Projeto'**, **'Porcentagem'** (valor decimal, ex: 0.25 para 25%) e **'Observação (Opcional)'**. **O status será definido como 'Pendente'.**"
+            "⚠️ **Aviso de Formato:** Seu arquivo deve conter as colunas: **'Nome'**, **'Data'** (Mês/Ano ou DD/MM/AAAA), **'Descrição'**, **'Projeto'** (valor decimal, ex: 0.25 para 25%) e **'Observação (Opcional)'**. **O status será definido como 'Pendente'.**"
             
         )
         
