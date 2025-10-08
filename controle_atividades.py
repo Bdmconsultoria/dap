@@ -259,6 +259,28 @@ def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observa
     finally:
         conn.close()
 
+# MODIFICADA: Adicionada edição de Descrição e Projeto
+def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nova_porcentagem, nova_observacao):
+    """Atualiza a descrição, projeto, porcentagem e observação de uma atividade específica (usado em Minhas Atividades)."""
+    conn = get_db_connection()
+    if conn is None: return False
+    try:
+        with conn.cursor() as cursor:
+            # O status não é alterado, pois este é o formulário do usuário, não do gestor.
+            cursor.execute("""
+                UPDATE atividades
+                SET descricao = %s, projeto = %s, porcentagem = %s, observacao = %s
+                WHERE id = %s;
+            """, (nova_descricao, novo_projeto, nova_porcentagem, nova_observacao, atividade_id))
+            conn.commit()
+            return True
+    except Exception as e:
+        st.error(f"Erro ao atualizar atividade completa: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def apagar_atividade(atividade_id):
     """Apaga uma atividade específica pelo ID."""
     conn = get_db_connection()
@@ -588,26 +610,6 @@ def carregar_atividades_usuario(usuario, mes, ano):
     finally:
         conn.close()
 
-def atualizar_atividade(atividade_id, nova_porcentagem, nova_observacao):
-    """Atualiza a porcentagem e observação de uma atividade específica."""
-    conn = get_db_connection()
-    if conn is None: return False
-    try:
-        with conn.cursor() as cursor:
-            # O status não é alterado, pois este é o formulário do usuário, não do gestor.
-            cursor.execute("""
-                UPDATE atividades
-                SET porcentagem = %s, observacao = %s
-                WHERE id = %s;
-            """, (nova_porcentagem, nova_observacao, atividade_id))
-            conn.commit()
-            return True
-    except Exception as e:
-        st.error(f"Erro ao atualizar atividade: {e}")
-        return False
-    finally:
-        conn.close()
-
 def excluir_atividade(atividade_id):
     """Exclui uma atividade específica. É um alias para apagar_atividade."""
     return apagar_atividade(atividade_id)
@@ -820,6 +822,11 @@ st.markdown(
             margin-bottom: 10px;
             padding-top: 10px;
         }}
+
+        /* NOVO ESTILO PARA O LOGO (Clareamento) */
+        [data-testid="stSidebar"] img {
+            filter: brightness(1.5) contrast(1.5); /* Aumenta o brilho e o contraste */
+        }
     </style>
     """,
     unsafe_allow_html=True
@@ -1796,102 +1803,97 @@ else:
 
         # Exibir lista com edição
         st.subheader("✏️ Editar ou Excluir Lançamentos")
+        
+        # Otimização: Reestrutura a exibição para ser direta, sem expander
         for idx, a in enumerate(atividades):
             
-            # Extrai a hora bruta e a observação limpa
+            # 1. Pré-processamento
             hora_bruta, observacao_limpa = extrair_hora_bruta(a.get("observacao", ""))
-            
-            # Formata o badge de status (string HTML)
             status_badge = f'<span class="status-badge status-{a["status"]}">{a["status"]}</span>'
+            can_edit = a['status'] == 'Pendente'
+            disabled_edit = not can_edit
+
+            # 2. Layout do Bloco
+            st.markdown(f"**ID {a['id']}** | {status_badge}", unsafe_allow_html=True)
             
-            # Conteúdo do cabeçalho que queremos estilizar
-            # MELHORIA DE VISUAL: Adicionar um icone de caneta se for editável
-            can_edit = a['status'] not in ['Aprovado', 'Rejeitado']
-            edit_icon = "✏️" if can_edit else "🔒"
-            
-            cabecalho_expander = f"{edit_icon} {a['descricao']} | {a['projeto']} ({a['porcentagem']}%) | {status_badge}"
-
-            # CORREÇÃO HTML: Usar expander sem título e renderizar o título dentro
-            with st.expander("", expanded=False):
+            # Usando st.form para agrupar campos e garantir que apenas esta atividade seja salva
+            with st.form(key=f"form_edit_{a['id']}"):
                 
-                # Renderiza o cabeçalho dinâmico com o badge HTML
-                st.markdown(cabecalho_expander, unsafe_allow_html=True)
-                st.markdown("---") # Linha separadora logo abaixo do título
+                col_desc, col_proj, col_perc = st.columns([4, 4, 2])
                 
-                # LÓGICA DE EDIÇÃO: Bloqueia se Aprovado ou Rejeitado
-                if a['status'] in ['Aprovado', 'Rejeitado']:
-                    st.warning(f"⚠️ Esta atividade está **{a['status']}** e não pode ser editada. Apenas atividades Pendentes são editáveis.")
-                    disabled_edit = True
-                else:
-                    disabled_edit = False # Permite edição para status 'Pendente'
-
-                col1, col2, col3 = st.columns([2, 2, 1])
-                with col1:
-                    st.text_input("Descrição", a["descricao"], disabled=True, key=f"desc_minhas_{idx}")
-                with col2:
-                    st.text_input("Projeto", a["projeto"], disabled=True, key=f"proj_minhas_{idx}")
-                with col3:
-                    # Novo valor de porcentagem a ser editado
-                    nova_porcentagem = st.number_input(
-                        "Porcentagem (%)",
-                        min_value=0,
-                        max_value=100,
-                        value=int(a["porcentagem"]),
-                        step=1,
-                        key=f"porc_minhas_{idx}",
-                        disabled=disabled_edit
-                    )
-
-                # Exibe a observação limpa, o metadado só existe no DB
-                nova_observacao_input = st.text_area(
-                    "Observação (opcional)",
-                    observacao_limpa, # Mostra apenas a observação limpa
-                    key=f"obs_minhas_{idx}",
+                # Campos de Edição (agora incluem Descrição e Projeto)
+                
+                # Permite a edição do texto, mas com opções do seletor original
+                nova_descricao = col_desc.selectbox(
+                    "Descrição",
+                    options=DESCRICOES_SELECT,
+                    index=DESCRICOES_SELECT.index(a["descricao"]) if a["descricao"] in DESCRICOES_SELECT else 0,
+                    key=f"desc_minhas_{a['id']}",
                     disabled=disabled_edit
                 )
                 
-                # MELHORIA DE VISUAL: Mostrar a hora bruta se existir
+                novo_projeto = col_proj.selectbox(
+                    "Projeto",
+                    options=PROJETOS_SELECT,
+                    index=PROJETOS_SELECT.index(a["projeto"]) if a["projeto"] in PROJETOS_SELECT else 0,
+                    key=f"proj_minhas_{a['id']}",
+                    disabled=disabled_edit
+                )
+                
+                nova_porcentagem = col_perc.number_input(
+                    "Porcentagem (%)",
+                    min_value=0,
+                    max_value=100,
+                    value=int(a["porcentagem"]),
+                    step=1,
+                    key=f"porc_minhas_{a['id']}",
+                    disabled=disabled_edit
+                )
+
+                nova_observacao_input = st.text_area(
+                    "Observação (opcional)",
+                    observacao_limpa, # Mostra apenas a observação limpa
+                    key=f"obs_minhas_{a['id']}",
+                    disabled=disabled_edit
+                )
+                
                 if hora_bruta > 0:
                      st.caption(f"**Horas Brutas Registradas (Metadado):** {hora_bruta:.1f} hrs")
 
                 col_salvar, col_excluir = st.columns(2)
-                with col_salvar:
-                    # O botão Salvar só é habilitado se for Pendente
-                    if st.button(f"💾 Salvar alterações ({idx})", key=f"btn_salvar_minhas_{idx}", disabled=disabled_edit, use_container_width=True):
+                
+                # Lógica de Salvar
+                if col_salvar.form_submit_button(f"💾 Salvar alterações", disabled=disabled_edit, use_container_width=True):
+                    
+                    # Validação 100%
+                    total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
+                    
+                    if (total_excluido + nova_porcentagem) > 100.0 + 0.001:
+                        st.error(f"⚠️ A edição ultrapassa 100% de alocação para {mes_select}/{ano_select} ({total_excluido + nova_porcentagem:.1f}%). Ajuste o valor.")
+                        st.stop()
                         
-                        # --- VERIFICAÇÃO DE 100% NA EDIÇÃO (SIMPLES) ---
-                        total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
-                        
-                        if (total_excluido + nova_porcentagem) > 100.0 + 0.001:
-                            st.error(f"⚠️ A edição ultrapassa 100% de alocação para {mes_select}/{ano_select} ({total_excluido + nova_porcentagem:.1f}%). Ajuste o valor.")
-                            st.stop()
-                        
-                        # Recria o metadado se a hora bruta existir (apenas para persistir a hora bruta)
-                        if hora_bruta > 0:
-                            # A edição aqui QUEBRA o recálculo proporcional do mês, mas preserva a hora bruta original.
-                            observacao_para_salvar = f"[HORA:{hora_bruta}|{nova_observacao_input}]"
-                        else:
-                            observacao_para_salvar = nova_observacao_input
-                        
-                        ok = atualizar_atividade(a["id"], nova_porcentagem, observacao_para_salvar)
-                        if ok:
-                            carregar_dados.clear()
-                            st.toast("✅ Atividade atualizada com sucesso!", icon="✅")
-                            st.rerun()
-                        
-                        else:
-                            st.error("❌ Erro ao atualizar atividade.")
-                with col_excluir:
-                    if st.button(f"🗑️ Excluir ({idx})", key=f"btn_excluir_minhas_{idx}", use_container_width=True):
-                        ok = excluir_atividade(a["id"])
+                    # Recria o metadado (se houver horas brutas)
+                    if hora_bruta > 0:
+                        observacao_para_salvar = f"[HORA:{hora_bruta}|{nova_observacao_input}]"
+                    else:
+                        observacao_para_salvar = nova_observacao_input
 
-                        if ok:
-                            carregar_dados.clear()
-                            st.toast("🗑️ Atividade excluída!", icon="🗑️")
-                            st.rerun()
-                        
-                        else:
-                            st.error("❌ Erro ao excluir atividade.")
+                    # Salva usando a nova função com Descrição e Projeto
+                    ok = atualizar_atividade_completa(a["id"], nova_descricao, novo_projeto, nova_porcentagem, observacao_para_salvar)
+
+                    if ok:
+                        carregar_dados.clear()
+                        st.toast("✅ Atividade atualizada com sucesso!", icon="✅")
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro ao atualizar atividade.")
+                
+                # Botão de Excluir (Fora do form de edição, mas dentro do bloco visual)
+                if col_excluir.button(f"🗑️ Excluir Lançamento", key=f"btn_excluir_minhas_{a['id']}", use_container_width=True):
+                    handle_delete(a["id"]) # Chama o callback de exclusão
+            
+            st.markdown('<div style="border-bottom: 1px solid #ddd; margin: 15px 0 15px 0;"></div>', unsafe_allow_html=True)
+
 
         st.markdown("---")
         st.caption(f"🕓 Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
