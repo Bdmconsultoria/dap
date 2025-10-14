@@ -3,4 +3,5 @@ psycopg2-binary
 pandas
 plotly
 openpyxl
-
+psycopg2.extras
+numpy
