@@ -1,7 +1,7 @@
 streamlit
-psycopg2-binary
 pandas
+psycopg2-binary
 plotly
-openpyxl
-psycopg2.extras
 numpy
+passlib
+bcrypt
