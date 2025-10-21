@@ -260,26 +260,74 @@ def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observa
         conn.close()
 
 # MODIFICADA: Adicionada edição de Descrição e Projeto
+
 def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nova_porcentagem, nova_observacao):
-    """Atualiza a descrição, projeto, porcentagem e observação de uma atividade específica (usado em Minhas Atividades)."""
+    """
+    Atualiza uma atividade específica. 
+    Se for do tipo 'Horas' (possui metadado [HORA:X|OBS]), recalcula proporcionalmente as porcentagens.
+    """
     conn = get_db_connection()
-    if conn is None: return False
+    if conn is None:
+        st.error("Falha ao conectar com o banco de dados.")
+        return False
+
     try:
+        # 1️⃣ Buscar dados da atividade antes da atualização
         with conn.cursor() as cursor:
-            # O status não é alterado, pois este é o formulário do usuário, não do gestor.
+            cursor.execute("""
+                SELECT usuario, mes, ano, observacao 
+                FROM atividades 
+                WHERE id = %s;
+            """, (atividade_id,))
+            dados = cursor.fetchone()
+
+        if not dados:
+            st.error("Atividade não encontrada.")
+            return False
+
+        usuario, mes, ano, observacao_antiga = dados
+        hora_antiga, _ = extrair_hora_bruta(observacao_antiga)
+        hora_nova, _ = extrair_hora_bruta(nova_observacao)
+
+        # 2️⃣ Atualiza os campos básicos da atividade
+        with conn.cursor() as cursor:
             cursor.execute("""
                 UPDATE atividades
                 SET descricao = %s, projeto = %s, porcentagem = %s, observacao = %s
                 WHERE id = %s;
             """, (nova_descricao, novo_projeto, nova_porcentagem, nova_observacao, atividade_id))
             conn.commit()
-            return True
+
+        # 3️⃣ Se for atividade por horas, recalcular todas do mesmo mês/usuário
+        if hora_antiga > 0 or hora_nova > 0:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, observacao 
+                    FROM atividades
+                    WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';
+                """, (usuario, mes, ano))
+                atividades = cursor.fetchall()
+
+            atividades_horas = []
+            total_horas = 0
+            for a_id, obs in atividades:
+                h, _ = extrair_hora_bruta(obs)
+                if h > 0:
+                    atividades_horas.append((a_id, h))
+                    total_horas += h
+
+            if total_horas > 0:
+                for a_id, h in atividades_horas:
+                    nova_porcentagem_calc = int(round((h / total_horas) * 100))
+                    atualizar_porcentagem_atividade(a_id, nova_porcentagem_calc)
+
+        return True
+
     except Exception as e:
         st.error(f"Erro ao atualizar atividade completa: {e}")
         return False
     finally:
         conn.close()
-
 
 def apagar_atividade(atividade_id):
     """Apaga uma atividade específica pelo ID."""
@@ -706,13 +754,75 @@ def cancelar_edicao():
     st.session_state['edit_id'] = None
     st.rerun() # Precisa de rerun para sair do estado de edição
 
+
 def handle_delete(atividade_id):
-    """Apaga uma atividade e limpa o cache, forçando o rerun."""
-    if apagar_atividade(atividade_id):
-        carregar_dados.clear()
-        st.toast("Atividade apagada!", icon="🗑️") 
-        
-        st.rerun()
+    """
+    Apaga uma atividade e, se for do tipo Horas, recalcula as porcentagens restantes.
+    """
+    # 1️⃣ Obter dados da atividade antes de excluir
+    conn = get_db_connection()
+    if conn is None:
+        st.error("Falha na conexão com o banco.")
+        return
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT usuario, mes, ano, observacao 
+                FROM atividades 
+                WHERE id = %s;
+            """, (atividade_id,))
+            dados = cursor.fetchone()
+    finally:
+        conn.close()
+
+    if not dados:
+        st.error("Atividade não encontrada.")
+        return
+
+    usuario, mes, ano, observacao = dados
+
+    # 2️⃣ Excluir a atividade
+    if not apagar_atividade(atividade_id):
+        st.error("Erro ao excluir atividade.")
+        return
+
+    # 3️⃣ Verificar se é modo Horas e recalcular
+    hora, _ = extrair_hora_bruta(observacao)
+    if hora > 0:
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Buscar as demais atividades do mesmo usuário/mês/ano
+                cursor.execute("""
+                    SELECT id, observacao 
+                    FROM atividades 
+                    WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';
+                """, (usuario, mes, ano))
+                atividades_restantes = cursor.fetchall()
+
+            # Extrair horas brutas restantes
+            atividades_horas = []
+            total_horas = 0
+            for a_id, obs in atividades_restantes:
+                h, _ = extrair_hora_bruta(obs)
+                if h > 0:
+                    atividades_horas.append((a_id, h))
+                    total_horas += h
+
+            # Recalcular porcentagem proporcional
+            if total_horas > 0:
+                for a_id, h in atividades_horas:
+                    nova_porcentagem = int(round((h / total_horas) * 100))
+                    atualizar_porcentagem_atividade(a_id, nova_porcentagem)
+
+        finally:
+            conn.close()
+
+    # 4️⃣ Atualizar interface
+    carregar_dados.clear()
+    st.toast("🗑️ Atividade apagada e porcentagens recalculadas!", icon="🔄")
+    st.rerun()
 
 def handle_status_update(atividade_id, novo_status):
     """Atualiza o status de uma atividade e limpa o cache, forçando o rerun."""
