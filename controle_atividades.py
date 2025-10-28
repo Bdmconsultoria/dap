@@ -15,7 +15,7 @@ import numpy as np
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_APP = "#FFFFFF"      # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
@@ -666,59 +666,59 @@ def excluir_atividade(atividade_id):
 # 5. Dados fixos
 # ==============================
 DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento",
-             "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira",
-             "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados",
-             "2.012 - Logística de viagens","2.013 - Prestação de contas","3.001 - Prospecção de oportunidades",
-             "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital",
-             "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto",
-             "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta",
-             "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial",
-             "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto",
-             "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho",
-             "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas",
-             "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos",
-             "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados",
-             "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento",
-             "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho",
-             "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados",
-             "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug",
-             "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades",
-             "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação",
-             "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa",
-             "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes",
-             "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material",
-             "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho",
-             "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo",
-             "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH",
-             "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento",
-             "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna",
-             "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação",
-             "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho",
-             "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações",
-             "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos",
-             "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados",
-             "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
+              "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira",
+              "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados",
+              "2.012 - Logística de viagens","2.013 - Prestação de contas","3.001 - Prospecção de oportunidades",
+              "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital",
+              "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto",
+              "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta",
+              "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial",
+              "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto",
+              "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho",
+              "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas",
+              "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos",
+              "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados",
+              "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento",
+              "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho",
+              "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados",
+              "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug",
+              "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades",
+              "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação",
+              "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa",
+              "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes",
+              "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material",
+              "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho",
+              "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo",
+              "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH",
+              "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento",
+              "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna",
+              "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação",
+              "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho",
+              "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações",
+              "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos",
+              "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados",
+              "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
 
 PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia",
-             "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
-             "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura",
-             "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente",
-             "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas",
-             "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0",
-             "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)",
-             "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid",
-             "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta",
-             "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid",
-             "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas",
-             "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde",
-             "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics",
-             "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação",
-             "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD",
-             "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT",
-             "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas",
-             "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck",
-             "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
-             "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
+              "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
+              "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura",
+              "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente",
+              "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas",
+              "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0",
+              "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)",
+              "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid",
+              "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta",
+              "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid",
+              "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas",
+              "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde",
+              "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics",
+              "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação",
+              "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD",
+              "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT",
+              "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas",
+              "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck",
+              "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
+              "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
 
 # Adiciona a opção vazia no início das listas para uso no selectbox
 DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
@@ -884,11 +884,11 @@ st.markdown(
         }}
         /* Seletor para a opção de rádio selecionada - Mais estável em Streamlit recente */
         [data-testid="stSidebar"] .stRadio > label[data-testid*="stRadioInline"]:has(input:checked) {{
-              background-color: {COR_SECUNDARIA} !important;
-              border-radius: 5px; /* Adiciona um arredondamento sutil */
+             background-color: {COR_SECUNDARIA} !important;
+             border-radius: 5px; /* Adiciona um arredondamento sutil */
         }}
         [data-testid="stSidebar"] .stRadio > label[data-testid*="stRadioInline"] {{
-              padding: 5px 10px; /* Adiciona padding para o radio */
+             padding: 5px 10px; /* Adiciona padding para o radio */
         }}
         
         /* Estilo para o corpo principal do APP */
@@ -1163,14 +1163,14 @@ else:
                     gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
                     # Adiciona um placeholder para evitar erro se a lista estiver vazia
                     if not gerentes_remover_list:
-                             gerentes_remover_list = ["Nenhum Gerente Configurado"]
-                             
+                                 gerentes_remover_list = ["Nenhum Gerente Configurado"]
+                                
                     gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area", disabled=("Nenhum Gerente Configurado" in gerentes_remover_list)) 
                     
                     
                     subordinados_do_gerente = []
                     if gerente_remover != "Nenhum Gerente Configurado":
-                             subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                                 subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
                     
                     if not subordinados_do_gerente:
                         subordinados_do_gerente = ["Nenhuma Pessoa da Equipe"]
@@ -1193,6 +1193,7 @@ else:
         
         # 2. NÃO-ADMIN (Gerente): Só gerencia seu próprio time
         
+        
         # --- 3. APROVAÇÃO E ACOMPANHAMENTO DE EQUIPES ---
         st.markdown("---")
         st.subheader("Análise e Aprovação de Atividades")
@@ -1204,20 +1205,20 @@ else:
             st.stop()
         
         if st.session_state["admin"]:
-                 # Admin seleciona qualquer time
-                 gerente_a_analisar = st.selectbox(
-                     "Selecione o Gerente da Área para Análise", 
-                     sorted(gerentes_com_time)
-                 )
+                   # Admin seleciona qualquer time
+                   gerente_a_analisar = st.selectbox(
+                       "Selecione o Gerente da Área para Análise", 
+                       sorted(gerentes_com_time)
+                   )
         else:
-                 # Gerente só vê o próprio time
-                 
-             gerente_a_analisar = usuario_logado
-             st.markdown(f"**Gerente da Área em Análise:** **{gerente_a_analisar}**") 
+                   # Gerente só vê o próprio time
+                   
+            gerente_a_analisar = usuario_logado
+            st.markdown(f"**Gerente da Área em Análise:** **{gerente_a_analisar}**") 
 
         if gerente_a_analisar not in gerentes_com_time:
-                 st.error("Gerente da Área inválido selecionado.")
-                 st.stop()
+                   st.error("Gerente da Área inválido selecionado.")
+                   st.stop()
 
 
         # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
@@ -1553,8 +1554,8 @@ else:
 
                 # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
                 observacao = st.text_area(f"Observação (Opcional)", 
-                                           key=f"obs_{i}", 
-                                           value=st.session_state.get(f"obs_{i}", ""))
+                                            key=f"obs_{i}", 
+                                            value=st.session_state.get(f"obs_{i}", ""))
                 
                 # Divisor sutil entre os blocos
                 if i < qtd_lancamentos - 1:
@@ -1624,7 +1625,7 @@ else:
                     
                     if total_final > 100.0 + 0.001:
                         st.error(
-                             f"⚠️ O total de alocação excede o limite de 100% para {mes_select}/{ano_select}. Por favor, ajuste os valores."
+                            f"⚠️ O total de alocação excede o limite de 100% para {mes_select}/{ano_select}. Por favor, ajuste os valores."
                         )
                         st.stop()
                 
@@ -1680,9 +1681,9 @@ else:
                                 
                     # Limpeza de quantidade
                     if tipo_lancamento == "Porcentagem" and "lanc_qtd_p" in st.session_state:
-                         del st.session_state["lanc_qtd_p"]
+                        del st.session_state["lanc_qtd_p"]
                     if tipo_lancamento == "Horas" and "lanc_qtd_h" in st.session_state:
-                         del st.session_state["lanc_qtd_h"]
+                        del st.session_state["lanc_qtd_h"]
                     
                     
                     if total_final == 100:
@@ -1724,7 +1725,7 @@ else:
                         })
                         
                     soma_nova = sum(p["Porcentagem"] for p in preview_data)
-                
+            
             else: # Porcentagem
                 # LÓGICA DE SOMA SIMPLES (NÃO PROPORCIONAL)
                 for l in lancamentos_validos_preview:
@@ -2210,10 +2211,10 @@ else:
                 if 'data_str' not in df_import.columns:
                      # Tenta encontrar a coluna 'data'
                      if 'data' in df_import.columns:
-                          df_import.rename(columns={'data': 'data_str'}, inplace=True)
+                         df_import.rename(columns={'data': 'data_str'}, inplace=True)
                      else:
-                          raise KeyError(f"A coluna **'Data'** (ou 'data_str') não foi encontrada no arquivo. Verifique se o nome do cabeçalho está correto.")
-                          
+                         raise KeyError(f"A coluna **'Data'** (ou 'data_str') não foi encontrada no arquivo. Verifique se o nome do cabeçalho está correto.")
+                         
                 # Verifica as outras colunas
                 for col_name, col_dest in colunas_mapeamento_origem.items():
                     if col_dest != 'data_str' and col_dest not in df_import.columns:
@@ -2239,7 +2240,7 @@ else:
                         else:
                             st.info(f"Todos os {len(usuarios_csv)} usuários do arquivo já estão cadastrados no sistema.")
                     
-                    
+                        
                         # --- Limpeza e Transformação dos Dados de Atividade ---
                     # Tenta converter a data, primeiro com dayfirst=True
                     df_import['data'] = pd.to_datetime(df_import['data_str'], errors='coerce', dayfirst=True)
@@ -2279,25 +2280,63 @@ else:
 
                     st.success(f"Pronto para importar **{len(df_para_inserir)}** registros de atividades. ({df_import.shape[0]} linhas válidas mantidas.)")
                     
+                    # ==========================================================
+                    # 🔒 INÍCIO DA VALIDAÇÃO DE 100% (BLOCO SUBSTITUÍDO)
+                    # ==========================================================
                     if st.button("Confirmar Importação de ATIVIDADES para o Banco de Dados", key="btn_import_final", use_container_width=True):
-                        with st.spinner('Importando dados de atividades em massa...'):
+                        with st.spinner('Validando totais e importando dados...'): # Mensagem do spinner atualizada
                             
+                            # ==========================================================
+                            # 🔒 VALIDAÇÃO DE 100% ANTES DE IMPORTAR
+                            # ==========================================================
+                            
+                            # 1. Carrega os totais existentes (usa o df já carregado no topo do script 'atividades_df')
+                            df_existentes_ativas = atividades_df[atividades_df['status'] != 'Rejeitado']
+                            df_totais_existentes = df_existentes_ativas.groupby(['usuario', 'mes', 'ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem': 'total_existente'})
+
+                            # 2. Calcula os totais do novo arquivo (df_para_inserir já foi processado)
+                            df_novos_totais = df_para_inserir.groupby(['usuario', 'mes', 'ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem': 'total_novo'})
+                            
+                            # 3. Combina os dois (outer join para pegar todos os casos)
+                            df_combinado = pd.merge(df_totais_existentes, df_novos_totais, on=['usuario', 'mes', 'ano'], how='outer')
+                            df_combinado.fillna(0, inplace=True)
+                            
+                            # 4. Calcula o total final
+                            df_combinado['total_final'] = df_combinado['total_existente'] + df_combinado['total_novo']
+                            
+                            # 5. Encontra os violadores
+                            # (Como a coluna 'porcentagem' no DB é INTEGER, uma soma > 100 é uma violação clara)
+                            violadores = df_combinado[df_combinado['total_final'] > 100] 
+                            
+                            if not violadores.empty:
+                                st.error(f"❌ **Importação Cancelada!** A importação resultaria em alocações acima de 100% para os seguintes usuários/meses:")
+                                # Exibe um dataframe com os detalhes do erro
+                                st.dataframe(violadores[['usuario', 'mes', 'ano', 'total_existente', 'total_novo', 'total_final']], use_container_width=True)
+                                st.stop() # Interrompe a execução aqui
+                            
+                            # ==========================================================
+                            # FIM DA VALIDAÇÃO
+                            # ==========================================================
+
+                            # Se passou na validação, continua com a importação
                             linhas_inseridas, mensagem = bulk_insert_atividades(df_para_inserir)
-                        
-                        carregar_dados.clear()
-                        
-                        
-                        if linhas_inseridas > 0:
-                            st.success(f"🎉 **{linhas_inseridas}** registros de atividades importados com sucesso!")
-                        else:
                             
-                            st.error(mensagem)
-                        
-                        st.rerun()
+                            carregar_dados.clear()
+                            
+                            
+                            if linhas_inseridas > 0:
+                                st.success(f"🎉 **{linhas_inseridas}** registros de atividades importados com sucesso!")
+                            else:
+                                
+                                st.error(mensagem)
+                            
+                            st.rerun()
+                    # ==========================================================
+                    # 🔒 FIM DO BLOCO SUBSTITUÍDO
+                    # ==========================================================
                     
             except KeyError as e:
                 st.error(f"❌ Erro: Uma coluna esperada não foi encontrada no arquivo. Verifique se as colunas estão corretas. Coluna ausente: **{e}**")
             except Exception as e:
                 # MELHORIA DE VISUAL: Exibir a exceção completa
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
