@@ -62,7 +62,7 @@ def get_db_connection():
 # ==============================
 def setup_db():
     """Cria as tabelas 'usuarios', 'atividades' e 'hierarquia' se elas não existirem
-        e garante que a coluna 'status' exista na tabela 'atividades'."""
+       e garante que a coluna 'status' exista na tabela 'atividades'."""
     conn = get_db_connection()
     if conn is None: return
     try:
@@ -700,25 +700,25 @@ DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Trei
               "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
 
 PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia",
-              "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
-              "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura",
-              "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente",
-              "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas",
-              "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0",
-              "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)",
-              "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid",
-              "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta",
-              "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid",
-              "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas",
-              "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde",
-              "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics",
-              "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação",
-              "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD",
-              "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT",
-              "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas",
-              "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck",
-              "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
-              "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
+            "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
+            "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura",
+            "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente",
+            "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas",
+            "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0",
+            "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)",
+            "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid",
+            "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta",
+            "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid",
+            "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas",
+            "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde",
+            "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics",
+            "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação",
+            "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD",
+            "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT",
+            "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas",
+            "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck",
+            "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta",
+            "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
 
 # Adiciona a opção vazia no início das listas para uso no selectbox
 DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
@@ -875,20 +875,20 @@ st.markdown(
             color: #FFFFFF !important;
         }}
         [data-testid="stSidebar"] .stButton > button {{
-             background-color: {COR_FUNDO_SIDEBAR} !important;
-             border: 1px solid #FFFFFF30;
-             color: #FFFFFF !important;
+            background-color: {COR_FUNDO_SIDEBAR} !important;
+            border: 1px solid #FFFFFF30;
+            color: #FFFFFF !important;
         }}
         [data-testid="stSidebar"] .stButton > button:hover {{
-             background-color: {COR_SECUNDARIA} !important;
+            background-color: {COR_SECUNDARIA} !important;
         }}
         /* Seletor para a opção de rádio selecionada - Mais estável em Streamlit recente */
         [data-testid="stSidebar"] .stRadio > label[data-testid*="stRadioInline"]:has(input:checked) {{
-             background-color: {COR_SECUNDARIA} !important;
-             border-radius: 5px; /* Adiciona um arredondamento sutil */
+            background-color: {COR_SECUNDARIA} !important;
+            border-radius: 5px; /* Adiciona um arredondamento sutil */
         }}
         [data-testid="stSidebar"] .stRadio > label[data-testid*="stRadioInline"] {{
-             padding: 5px 10px; /* Adiciona padding para o radio */
+            padding: 5px 10px; /* Adiciona padding para o radio */
         }}
         
         /* Estilo para o corpo principal do APP */
@@ -1205,20 +1205,20 @@ else:
             st.stop()
         
         if st.session_state["admin"]:
-                    # Admin seleciona qualquer time
-                    gerente_a_analisar = st.selectbox(
-                        "Selecione o Gerente da Área para Análise", 
-                        sorted(gerentes_com_time)
-                    )
+                        # Admin seleciona qualquer time
+                        gerente_a_analisar = st.selectbox(
+                            "Selecione o Gerente da Área para Análise", 
+                            sorted(gerentes_com_time)
+                        )
         else:
-                    # Gerente só vê o próprio time
-                    
+                        # Gerente só vê o próprio time
+                
             gerente_a_analisar = usuario_logado
             st.markdown(f"**Gerente da Área em Análise:** **{gerente_a_analisar}**") 
 
         if gerente_a_analisar not in gerentes_com_time:
-                    st.error("Gerente da Área inválido selecionado.")
-                    st.stop()
+                        st.error("Gerente da Área inválido selecionado.")
+                        st.stop()
 
 
         # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
@@ -1454,24 +1454,20 @@ else:
         
         tab_porcentagem, tab_horas = st.tabs(["Lançamento por Porcentagem", "Lançamento por Horas"])
         
-        # Variável de controle de estado para o tipo de lançamento
-        if 'lanc_tipo_aba' not in st.session_state:
-            st.session_state['lanc_tipo_aba'] = "Porcentagem"
+        # ==========================================================
+        # INÍCIO DA CORREÇÃO (BLOCO SUBSTITUÍDO)
+        # ==========================================================
         
-        
-        # --- LÓGICA SIMPLIFICADA (INÍCIO) ---
-        # 1. Defina um valor padrão com base no state da aba.
-        if st.session_state['lanc_tipo_aba'] == "Horas":
-            tipo_lancamento = "Horas"
-            qtd_lancamentos = st.session_state.get("lanc_qtd_h", 1)
-        else:
-            tipo_lancamento = "Porcentagem"
-            qtd_lancamentos = st.session_state.get("lanc_qtd_p", 1)
-        # --- LÓGICA SIMPLIFICADA (FIM) ---
+        # Define valores padrão. Eles serão sobrepostos pela aba ativa.
+        tipo_lancamento = "Porcentagem"
+        qtd_lancamentos = 1
 
+        # ==========================================================
+        # FIM DA CORREÇÃO
+        # ==========================================================
         
         with tab_porcentagem:
-            st.session_state['lanc_tipo_aba'] = "Porcentagem"
+            # REMOVIDO: st.session_state['lanc_tipo_aba'] = "Porcentagem"
             st.info(
                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
                 f"📊 **Total já alocado:** **{total_existente:.1f}%** \n"
@@ -1491,7 +1487,7 @@ else:
             qtd_lancamentos = qtd_lancamentos_p
             
         with tab_horas:
-            st.session_state['lanc_tipo_aba'] = "Horas"
+            # REMOVIDO: st.session_state['lanc_tipo_aba'] = "Horas"
             st.info(
                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
                 f"⏳ **Horas brutas já lançadas:** **{total_horas_existentes:.1f} hrs** \n"
@@ -2217,7 +2213,7 @@ else:
                                 
                         except Exception:
                             continue
-                            
+                        
                     if df_import is None:
                         raise Exception("Falha ao tokenizar os dados após múltiplas tentativas de delimitador e encoding. Verifique a formatação do CSV.")
                         
@@ -2308,7 +2304,6 @@ else:
                     
                     
                     
-                    
                     # MELHORIA DE VISUAL: Arredondar usando round(0)
                     df_import['porcentagem'] = (df_import['porcentagem'] * 100).round(0).astype(int)
                     
@@ -2387,4 +2382,3 @@ else:
             except Exception as e:
                 # MELHORIA DE VISUAL: Exibir a exceção completa
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
-
