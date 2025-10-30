@@ -937,12 +937,6 @@ st.markdown(
         [data-testid="stSidebar"] img {{
             filter: brightness(1.5) contrast(1.5); /* Aumenta o brilho e o contraste */
         }}
-        
-        /* Ajuste para placeholders de selectbox no layout horizontal */
-        .stSelectbox [data-baseweb="select"] > div > div {{
-            color: #555; /* Cor mais escura para o placeholder */
-        }}
-
     </style>
     """,
     unsafe_allow_html=True
@@ -1520,79 +1514,111 @@ else:
         st.markdown("---")
 
         # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
-        # MELHORIA DE VISUAL: Encapsular o formulário de lançamentos em um único Form para melhor UX
         with st.form("form_multi_lancamentos"):
             
-            # --- MUDANÇA PRINCIPAL: Criar N colunas (uma para cada lançamento) ---
-            cols = st.columns(qtd_lancamentos) 
+            # --- MUDANÇA PRINCIPAL: Criar um layout de "grid" ---
+            
+            # 1. CRIAR O CABEÇALHO DA "TABELA"
+            # Define as proporções das colunas
+            col_proporcoes = [0.5, 4, 4, 1.5, 3] # [Nº, Descrição, Projeto, Valor, Observação]
+            
+            header_cols = st.columns(col_proporcoes)
+            with header_cols[0]:
+                st.markdown("**Nº**")
+            with header_cols[1]:
+                st.markdown("**Descrição**")
+            with header_cols[2]:
+                st.markdown("**Projeto**")
+            with header_cols[3]:
+                # Label da coluna de valor muda com a aba
+                if tipo_lancamento == "Porcentagem":
+                    st.markdown("**%**")
+                else:
+                    st.markdown("**Horas**")
+            with header_cols[4]:
+                st.markdown("**Observação (Opcional)**")
+            
+            st.markdown("""<hr style="margin: 0.5rem 0;">""", unsafe_allow_html=True) # Divisor sutil
+
             lancamentos = [] # Reinicia a lista de lançamentos
 
-            for i, col in enumerate(cols):
-                # 'with col:' coloca todos os widgets a seguir na coluna 'i'
-                with col: 
-                    # Início do Bloco de Lançamento
-                    st.markdown(f"### Lançamento {i+1}") # Título para o bloco
-                    
-                    # --- AJUSTE DE VISUAL: Labels ocultos e placeholders ---
+            # 2. CRIAR AS LINHAS DE INPUT (DENTRO DO LOOP)
+            for i in range(qtd_lancamentos):
+                row_cols = st.columns(col_proporcoes)
+                
+                # Coluna 0: Número
+                with row_cols[0]:
+                    # Adiciona o número do lançamento alinhado
+                    # Usamos um 'text_input' desabilitado para garantir o alinhamento vertical
+                    st.text_input("Nº", value=f"{i+1}", key=f"idx_{i}", disabled=True, label_visibility="collapsed")
+                
+                # Coluna 1: Descrição
+                with row_cols[1]:
                     descricao = st.selectbox(
-                        "Descrição", # Label original (necessário para placeholder)
+                        f"Descrição {i}", # Key/label único
                         DESCRICOES_SELECT,
                         key=f"desc_{i}",
                         label_visibility="collapsed", # Esconde o label
-                        placeholder="--- Selecione a Descrição ---" # Texto de ajuda
                     )
+                
+                # Coluna 2: Projeto
+                with row_cols[2]:
                     projeto = st.selectbox(
-                        "Projeto", # Label original
+                        f"Projeto {i}", # Key/label único
                         PROJETOS_SELECT,
                         key=f"proj_{i}",
                         label_visibility="collapsed", # Esconde o label
-                        placeholder="--- Selecione o Projeto ---" # Texto de ajuda
                     )
 
+                # Coluna 3: Valor (% ou Horas)
+                with row_cols[3]:
                     if tipo_lancamento == "Porcentagem":
                         valor = st.number_input(
-                            "Porcentagem (%)", # Label original
+                            f"Porcentagem (%) {i}", # Key/label único
                             min_value=0.0,
                             max_value=100.0,
                             value=st.session_state.get(f"valor_{i}", 0.0),
                             step=1.0,
                             key=f"valor_{i}",
                             label_visibility="collapsed", # Esconde o label
-                            placeholder="Porcentagem (%)" # Texto de ajuda
+                            placeholder="%" 
                         )
                     else: # Horas
                         valor = st.number_input(
-                            "Horas", # Label original
+                            f"Horas {i}", # Key/label único
                             min_value=0.0,
                             max_value=200.0,
                             value=st.session_state.get(f"valor_{i}", 0.0),
                             step=0.5,
                             key=f"valor_{i}",
                             label_visibility="collapsed", # Esconde o label
-                            placeholder="Horas" # Texto de ajuda
+                            placeholder="Horas"
                         )
-
+                
+                # Coluna 4: Observação
+                with row_cols[4]:
                     observacao = st.text_area(
-                        "Observação (Opcional)", # Label original
+                        f"Observação (Opcional) {i}", # Key/label único
                         key=f"obs_{i}", 
                         value=st.session_state.get(f"obs_{i}", ""),
                         label_visibility="collapsed", # Esconde o label
-                        placeholder="Observação (Opcional)" # Texto de ajuda
+                        placeholder="Observação",
+                        height=50 # Altura menor para a linha
                     )
                     
-                    # --- FIM DA ALTERAÇÃO PARA BLOCOS HORIZONTAIS ---
+                # --- FIM DA ALTERAÇÃO PARA LAYOUT "GRID" ---
 
-                    # Armazena os dados atuais do estado de sessão
-                    lancamentos.append({
-                        "descricao": descricao,
-                        "projeto": projeto,
-                        "valor": valor,
-                        "observacao": observacao
-                    })
+                # Armazena os dados atuais do estado de sessão
+                lancamentos.append({
+                    "descricao": descricao,
+                    "projeto": projeto,
+                    "valor": valor,
+                    "observacao": observacao
+                })
             
             # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
-            # O botão de submit deve ficar DENTRO do form, mas FORA das colunas
-            st.markdown("---") # Divisor antes do botão de salvar
+            # O botão de submit deve ficar DENTRO do form, mas FORA das colunas/loop
+            st.markdown("---") # Divisor antes do botão
             submitted = st.form_submit_button("💾 Salvar Lançamentos", use_container_width=True)
 
 
@@ -1695,7 +1721,7 @@ else:
                     # ==================================
                     # Limpa campos dinâmicos (lançamentos)
                     for i in range(qtd_lancamentos):
-                        for key_prefix in ["desc_", "proj_", "valor_", "obs_"]:
+                        for key_prefix in ["desc_", "proj_", "valor_", "obs_", "idx_"]:
                             key = f"{key_prefix}{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
