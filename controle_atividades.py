@@ -15,7 +15,7 @@ import numpy as np
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO_APP = "#FFFFFF"      # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
@@ -937,6 +937,12 @@ st.markdown(
         [data-testid="stSidebar"] img {{
             filter: brightness(1.5) contrast(1.5); /* Aumenta o brilho e o contraste */
         }}
+        
+        /* Ajuste para placeholders de selectbox no layout horizontal */
+        .stSelectbox [data-baseweb="select"] > div > div {{
+            color: #555; /* Cor mais escura para o placeholder */
+        }}
+
     </style>
     """,
     unsafe_allow_html=True
@@ -1163,14 +1169,14 @@ else:
                     gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
                     # Adiciona um placeholder para evitar erro se a lista estiver vazia
                     if not gerentes_remover_list:
-                                 gerentes_remover_list = ["Nenhum Gerente Configurado"]
+                                    gerentes_remover_list = ["Nenhum Gerente Configurado"]
                                 
                     gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area", disabled=("Nenhum Gerente Configurado" in gerentes_remover_list)) 
                     
                     
                     subordinados_do_gerente = []
                     if gerente_remover != "Nenhum Gerente Configurado":
-                                 subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                                    subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
                     
                     if not subordinados_do_gerente:
                         subordinados_do_gerente = ["Nenhuma Pessoa da Equipe"]
@@ -1205,20 +1211,20 @@ else:
             st.stop()
         
         if st.session_state["admin"]:
-                   # Admin seleciona qualquer time
-                   gerente_a_analisar = st.selectbox(
-                       "Selecione o Gerente da Área para Análise", 
-                       sorted(gerentes_com_time)
-                   )
+                    # Admin seleciona qualquer time
+                    gerente_a_analisar = st.selectbox(
+                        "Selecione o Gerente da Área para Análise", 
+                        sorted(gerentes_com_time)
+                    )
         else:
-                   # Gerente só vê o próprio time
-                   
+                    # Gerente só vê o próprio time
+                    
             gerente_a_analisar = usuario_logado
             st.markdown(f"**Gerente da Área em Análise:** **{gerente_a_analisar}**") 
 
         if gerente_a_analisar not in gerentes_com_time:
-                   st.error("Gerente da Área inválido selecionado.")
-                   st.stop()
+                    st.error("Gerente da Área inválido selecionado.")
+                    st.stop()
 
 
         # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
@@ -1360,7 +1366,7 @@ else:
                     """
                     st.markdown(info_html, unsafe_allow_html=True)
 
-                    
+                
                 
                 with col2_d:
                     # --- USANDO on_click CALLBACK ---
@@ -1442,11 +1448,11 @@ else:
         # 2. CÁLCULO DE HORAS BRUTAS (para o modo Horas - metadado na 'observacao')
         horas_brutas_ativas = []
         for a in atividades_ativas:
-             hora, _ = extrair_hora_bruta(a.get('observacao', ''))
-             if hora > 0:
-                 # Armazena a observação original COMPLETA para re-encapsulamento
-                 horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
-                 
+            hora, _ = extrair_hora_bruta(a.get('observacao', ''))
+            if hora > 0:
+                # Armazena a observação original COMPLETA para re-encapsulamento
+                horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
+                
         total_horas_existentes = sum(h['hora'] for h in horas_brutas_ativas)
 
         # Tipo de lançamento
@@ -1459,12 +1465,23 @@ else:
             st.session_state['lanc_tipo_aba'] = "Porcentagem"
         
         
+        # --- LÓGICA SIMPLIFICADA (INÍCIO) ---
+        # 1. Defina um valor padrão com base no state da aba.
+        if st.session_state['lanc_tipo_aba'] == "Horas":
+            tipo_lancamento = "Horas"
+            qtd_lancamentos = st.session_state.get("lanc_qtd_h", 1)
+        else:
+            tipo_lancamento = "Porcentagem"
+            qtd_lancamentos = st.session_state.get("lanc_qtd_p", 1)
+        # --- LÓGICA SIMPLIFICADA (FIM) ---
+
+        
         with tab_porcentagem:
             st.session_state['lanc_tipo_aba'] = "Porcentagem"
             st.info(
-                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
-                 f"📊 **Total já alocado:** **{total_existente:.1f}%** \n"
-                 f"💡 **Saldo restante disponível:** **{saldo_restante:.1f}%**"
+                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
+                f"📊 **Total já alocado:** **{total_existente:.1f}%** \n"
+                f"💡 **Saldo restante disponível:** **{saldo_restante:.1f}%**"
             )
             # Input de quantidade dentro da aba
             qtd_lancamentos_p = st.number_input(
@@ -1475,15 +1492,16 @@ else:
                 step=1,
                 key="lanc_qtd_p"
             )
+            # 2. Quando esta aba estiver ativa, ela sobrescreve as variáveis
             tipo_lancamento = "Porcentagem"
             qtd_lancamentos = qtd_lancamentos_p
             
         with tab_horas:
             st.session_state['lanc_tipo_aba'] = "Horas"
             st.info(
-                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
-                 f"⏳ **Horas brutas já lançadas:** **{total_horas_existentes:.1f} hrs** \n"
-                 f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
+                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
+                f"⏳ **Horas brutas já lançadas:** **{total_horas_existentes:.1f} hrs** \n"
+                f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
             )
             # Input de quantidade dentro da aba
             qtd_lancamentos_h = st.number_input(
@@ -1494,86 +1512,89 @@ else:
                 step=1,
                 key="lanc_qtd_h"
             )
+            # 2. Quando esta aba estiver ativa, ela sobrescreve as variáveis
             tipo_lancamento = "Horas"
             qtd_lancamentos = qtd_lancamentos_h
-
-        # Ajusta o 'tipo_lancamento' baseado em qual aba foi clicada
-        if st.session_state['lanc_tipo_aba'] == "Horas":
-            tipo_lancamento = "Horas"
-            qtd_lancamentos = st.session_state.get("lanc_qtd_h", 1)
-        else:
-            tipo_lancamento = "Porcentagem"
-            qtd_lancamentos = st.session_state.get("lanc_qtd_p", 1)
 
 
         st.markdown("---")
 
         # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
-        lancamentos = []
         # MELHORIA DE VISUAL: Encapsular o formulário de lançamentos em um único Form para melhor UX
         with st.form("form_multi_lancamentos"):
-            for i in range(qtd_lancamentos):
-                # Início do Bloco de Lançamento
-                st.markdown(f"### Lançamento {i+1}") # Título para o bloco
-                
-                # Campos um embaixo do outro, ocupando a largura total (sem colunas internas)
-                
-                descricao = st.selectbox(
-                    f"Descrição",
-                    DESCRICOES_SELECT,
-                    key=f"desc_{i}",
-                    label_visibility="visible"
-                )
-                projeto = st.selectbox(
-                    f"Projeto",
-                    PROJETOS_SELECT,
-                    key=f"proj_{i}",
-                    label_visibility="visible"
-                )
+            
+            # --- MUDANÇA PRINCIPAL: Criar N colunas (uma para cada lançamento) ---
+            cols = st.columns(qtd_lancamentos) 
+            lancamentos = [] # Reinicia a lista de lançamentos
 
-                if tipo_lancamento == "Porcentagem":
-                    valor = st.number_input(
-                        f"Porcentagem (%)",
-                        min_value=0.0,
-                        max_value=100.0,
-                        value=st.session_state.get(f"valor_{i}", 0.0),
-                        step=1.0,
-                        key=f"valor_{i}",
-                        label_visibility="visible"
+            for i, col in enumerate(cols):
+                # 'with col:' coloca todos os widgets a seguir na coluna 'i'
+                with col: 
+                    # Início do Bloco de Lançamento
+                    st.markdown(f"### Lançamento {i+1}") # Título para o bloco
+                    
+                    # --- AJUSTE DE VISUAL: Labels ocultos e placeholders ---
+                    descricao = st.selectbox(
+                        "Descrição", # Label original (necessário para placeholder)
+                        DESCRICOES_SELECT,
+                        key=f"desc_{i}",
+                        label_visibility="collapsed", # Esconde o label
+                        placeholder="--- Selecione a Descrição ---" # Texto de ajuda
                     )
-                else: # Horas
-                    valor = st.number_input(
-                        f"Horas",
-                        min_value=0.0,
-                        max_value=200.0,
-                        value=st.session_state.get(f"valor_{i}", 0.0),
-                        step=0.5,
-                        key=f"valor_{i}",
-                        label_visibility="visible"
+                    projeto = st.selectbox(
+                        "Projeto", # Label original
+                        PROJETOS_SELECT,
+                        key=f"proj_{i}",
+                        label_visibility="collapsed", # Esconde o label
+                        placeholder="--- Selecione o Projeto ---" # Texto de ajuda
                     )
 
-                # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
-                observacao = st.text_area(f"Observação (Opcional)", 
-                                            key=f"obs_{i}", 
-                                            value=st.session_state.get(f"obs_{i}", ""))
-                
-                # Divisor sutil entre os blocos
-                if i < qtd_lancamentos - 1:
-                    st.markdown('<div class="vertical-block-separator"></div>', unsafe_allow_html=True)
-                
-                # --- FIM DA ALTERAÇÃO PARA BLOCOS VERTICAIS ---
+                    if tipo_lancamento == "Porcentagem":
+                        valor = st.number_input(
+                            "Porcentagem (%)", # Label original
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=st.session_state.get(f"valor_{i}", 0.0),
+                            step=1.0,
+                            key=f"valor_{i}",
+                            label_visibility="collapsed", # Esconde o label
+                            placeholder="Porcentagem (%)" # Texto de ajuda
+                        )
+                    else: # Horas
+                        valor = st.number_input(
+                            "Horas", # Label original
+                            min_value=0.0,
+                            max_value=200.0,
+                            value=st.session_state.get(f"valor_{i}", 0.0),
+                            step=0.5,
+                            key=f"valor_{i}",
+                            label_visibility="collapsed", # Esconde o label
+                            placeholder="Horas" # Texto de ajuda
+                        )
 
-                # Armazena os dados atuais do estado de sessão
-                lancamentos.append({
-                    "descricao": descricao,
-                    "projeto": projeto,
-                    "valor": valor,
-                    "observacao": observacao
-                })
+                    observacao = st.text_area(
+                        "Observação (Opcional)", # Label original
+                        key=f"obs_{i}", 
+                        value=st.session_state.get(f"obs_{i}", ""),
+                        label_visibility="collapsed", # Esconde o label
+                        placeholder="Observação (Opcional)" # Texto de ajuda
+                    )
+                    
+                    # --- FIM DA ALTERAÇÃO PARA BLOCOS HORIZONTAIS ---
 
+                    # Armazena os dados atuais do estado de sessão
+                    lancamentos.append({
+                        "descricao": descricao,
+                        "projeto": projeto,
+                        "valor": valor,
+                        "observacao": observacao
+                    })
+            
             # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
-            # O processamento e validação agora ocorrem quando o botão de submit é clicado
+            # O botão de submit deve ficar DENTRO do form, mas FORA das colunas
+            st.markdown("---") # Divisor antes do botão de salvar
             submitted = st.form_submit_button("💾 Salvar Lançamentos", use_container_width=True)
+
 
             if submitted:
                 if mes_num is None:
@@ -1587,7 +1608,7 @@ else:
                 if not lancamentos_validos:
                     st.error("Nenhum lançamento válido (com valor > 0) para salvar.")
                     st.stop()
-                    
+                        
                 for l in lancamentos_validos:
                     if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
                         st.error("Todos os lançamentos válidos devem ter uma Descrição e um Projeto selecionados.")
@@ -1600,21 +1621,21 @@ else:
                 # Simula o cálculo da pré-visualização para a validação final
                 for l in lancamentos_validos:
                     if tipo_lancamento == "Horas":
-                         soma_nova += l["valor"]
+                            soma_nova += l["valor"]
                     else:
-                         soma_nova += l["valor"]
+                            soma_nova += l["valor"]
 
                 if tipo_lancamento == "Horas":
                     total_geral_horas += soma_nova
                     if total_geral_horas <= 0:
-                         st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
-                         st.stop()
+                            st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
+                            st.stop()
                     # Recalculo proporcional e atribuição dos valores finais
                     for l in lancamentos_validos:
-                         porcent = (l["valor"] / total_geral_horas) * 100
-                         l["porcentagem_final"] = round(porcent, 2)
-                         obs_real = l["observacao"] if l["observacao"] else ""
-                         l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]"  # CRÍTICO: Armazena o metadado
+                            porcent = (l["valor"] / total_geral_horas) * 100
+                            l["porcentagem_final"] = round(porcent, 2)
+                            obs_real = l["observacao"] if l["observacao"] else ""
+                            l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]" # CRÍTICO: Armazena o metadado
                     total_final = 100.0
                 else: # Porcentagem
                     total_final = total_existente + soma_nova
@@ -2135,7 +2156,7 @@ else:
     elif aba == "Importar Dados" and st.session_state["admin"]:
         st.header("⬆️ Importação de Dados em Massa (Admin)")
         st.warning(
-            "⚠️ **Aviso de Formato:** Seu arquivo deve conter as colunas: **'Nome'**, **'Data'** (Mês/Ano ou DD/MM/AAAA), **'Descrição'**, **'Projeto'** (valor decimal, ex: 0.25 para 25%) e **'Observação (Opcional)'**. **O status será definido como 'Pendente'.**"
+            "⚠️ **Aviso de Formato:** Seu arquivo deve conter as colunas: **'Nome'**, **'Data'** (Mês/Ano ou DD/MM/AAAA), **'Descrição'**, **'Projeto'**, **'Porcentagem'** (valor decimal, ex: 0.25 para 25%) e **'Observação (Opcional)'**. **O status será definido como 'Pendente'.**"
             
         )
         
@@ -2239,7 +2260,7 @@ else:
                             st.info(f"Usuários encontrados no arquivo: **{len(usuarios_csv)}**. Novos usuários cadastrados: **{inserted_count}** (senha padrão: '123').")
                         else:
                             st.info(f"Todos os {len(usuarios_csv)} usuários do arquivo já estão cadastrados no sistema.")
-                    
+                        
                         
                         # --- Limpeza e Transformação dos Dados de Atividade ---
                     # Tenta converter a data, primeiro com dayfirst=True
