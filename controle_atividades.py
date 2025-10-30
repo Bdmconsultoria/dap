@@ -1449,60 +1449,47 @@ else:
                 
         total_horas_existentes = sum(h['hora'] for h in horas_brutas_ativas)
 
-        # Tipo de lançamento
-        # MELHORIA DE VISUAL: Usar st.tabs para separar a lógica de Porcentagem e Horas e dar um visual mais moderno.
-        
-        tab_porcentagem, tab_horas = st.tabs(["Lançamento por Porcentagem", "Lançamento por Horas"])
-        
-        
-        # --- CORREÇÃO APLICADA ---
-        # Removida a lógica antiga que usava st.session_state['lanc_tipo_aba']
-        # Define valores padrão. Eles serão sobrepostos pela aba ativa.
-        tipo_lancamento = "Porcentagem"
-        qtd_lancamentos = 1
-        # --- FIM DA CORREÇÃO ---
+        # ==========================================================
+        # INÍCIO DA CORREÇÃO: Substituindo st.tabs por st.radio
+        # ==========================================================
 
-        
-        with tab_porcentagem:
-            # REMOVIDO: st.session_state['lanc_tipo_aba'] = "Porcentagem"
+        # st.tabs foi substituído por st.radio para controlar o modo
+        tipo_lancamento = st.radio(
+            "Selecione o tipo de lançamento:",
+            ["Porcentagem", "Horas"],
+            horizontal=True,
+            key="lanc_tipo_radio" # Chave de estado de sessão
+        )
+
+        # Define qual chave de session_state usar para o input de quantidade
+        if tipo_lancamento == "Porcentagem":
             st.info(
                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
                 f"📊 **Total já alocado:** **{total_existente:.1f}%** \n"
                 f"💡 **Saldo restante disponível:** **{saldo_restante:.1f}%**"
             )
-            # Input de quantidade dentro da aba
-            qtd_lancamentos_p = st.number_input(
-                "Quantos lançamentos deseja adicionar?",
-                min_value=1,
-                max_value=20,
-                value=st.session_state.get("lanc_qtd_p", 1),
-                step=1,
-                key="lanc_qtd_p"
-            )
-            # 2. Quando esta aba estiver ativa, ela sobrescreve as variáveis
-            tipo_lancamento = "Porcentagem"
-            qtd_lancamentos = qtd_lancamentos_p
-            
-        with tab_horas:
-            # REMOVIDO: st.session_state['lanc_tipo_aba'] = "Horas"
+            key_qtd = "lanc_qtd_p" # Usar a chave antiga para manter o valor
+        else: # Horas
             st.info(
                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
                 f"⏳ **Horas brutas já lançadas:** **{total_horas_existentes:.1f} hrs** \n"
                 f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
             )
-            # Input de quantidade dentro da aba
-            qtd_lancamentos_h = st.number_input(
-                "Quantos lançamentos deseja adicionar?",
-                min_value=1,
-                max_value=20,
-                value=st.session_state.get("lanc_qtd_h", 1), 
-                step=1,
-                key="lanc_qtd_h"
-            )
-            # 2. Quando esta aba estiver ativa, ela sobrescreve as variáveis
-            tipo_lancamento = "Horas"
-            qtd_lancamentos = qtd_lancamentos_h
+            key_qtd = "lanc_qtd_h" # Usar a chave antiga
 
+        # Input de quantidade ÚNICO, controlado pelo st.radio
+        qtd_lancamentos = st.number_input(
+            "Quantos lançamentos deseja adicionar?",
+            min_value=1,
+            max_value=20,
+            value=st.session_state.get(key_qtd, 1), # Pega o valor do state correto
+            step=1,
+            key=key_qtd # Atualiza o state correto
+        )
+        
+        # ==========================================================
+        # FIM DA CORREÇÃO
+        # ==========================================================
 
         st.markdown("---")
 
@@ -1522,12 +1509,14 @@ else:
                 st.markdown("**Descrição**")
             with header_cols[2]:
                 st.markdown("**Projeto**")
+            
+            # Esta lógica agora funciona, pois 'tipo_lancamento' é definido pelo st.radio
             with header_cols[3]:
-                # Label da coluna de valor muda com a aba
                 if tipo_lancamento == "Porcentagem":
                     st.markdown("**%**")
                 else:
                     st.markdown("**Horas**")
+            
             with header_cols[4]:
                 st.markdown("**Observação (Opcional)**")
             
@@ -1536,13 +1525,11 @@ else:
             lancamentos = [] # Reinicia a lista de lançamentos
 
             # 2. CRIAR AS LINHAS DE INPUT (DENTRO DO LOOP)
-            for i in range(qtd_lancamentos):
+            for i in range(qtd_lancamentos): # Este loop agora usa o 'qtd_lancamentos' correto
                 row_cols = st.columns(col_proporcoes)
                 
                 # Coluna 0: Número
                 with row_cols[0]:
-                    # Adiciona o número do lançamento alinhado
-                    # Usamos um 'text_input' desabilitado para garantir o alinhamento vertical
                     st.text_input("Nº", value=f"{i+1}", key=f"idx_{i}", disabled=True, label_visibility="collapsed")
                 
                 # Coluna 1: Descrição
@@ -1563,7 +1550,7 @@ else:
                         label_visibility="collapsed", # Esconde o label
                     )
 
-                # Coluna 3: Valor (% ou Horas)
+                # Coluna 3: Valor (% ou Horas) - Controlado pelo st.radio
                 with row_cols[3]:
                     if tipo_lancamento == "Porcentagem":
                         valor = st.number_input(
@@ -1598,8 +1585,6 @@ else:
                         placeholder="Observação",
                         height=50 # Altura menor para a linha
                     )
-                    
-                # --- FIM DA ALTERAÇÃO PARA LAYOUT "GRID" ---
 
                 # Armazena os dados atuais do estado de sessão
                 lancamentos.append({
@@ -1610,7 +1595,6 @@ else:
                 })
             
             # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
-            # O botão de submit deve ficar DENTRO do form, mas FORA das colunas/loop
             st.markdown("---") # Divisor antes do botão
             submitted = st.form_submit_button("💾 Salvar Lançamentos", use_container_width=True)
 
@@ -1621,7 +1605,6 @@ else:
                     st.stop()
 
                 # Revalidação de campos e totais antes de salvar
-                # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
                 lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
                 
                 if not lancamentos_validos:
@@ -1637,12 +1620,8 @@ else:
                 soma_nova = 0
                 total_geral_horas = total_horas_existentes 
                 
-                # Simula o cálculo da pré-visualização para a validação final
                 for l in lancamentos_validos:
-                    if tipo_lancamento == "Horas":
-                            soma_nova += l["valor"]
-                    else:
-                            soma_nova += l["valor"]
+                    soma_nova += l["valor"]
 
                 if tipo_lancamento == "Horas":
                     total_geral_horas += soma_nova
@@ -1654,7 +1633,7 @@ else:
                             porcent = (l["valor"] / total_geral_horas) * 100
                             l["porcentagem_final"] = round(porcent, 2)
                             obs_real = l["observacao"] if l["observacao"] else ""
-                            l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]" # CRÍTICO: Armazena o metadado
+                            l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]"
                     total_final = 100.0
                 else: # Porcentagem
                     total_final = total_existente + soma_nova
@@ -1673,16 +1652,12 @@ else:
                 recalcular_e_atualizar = (tipo_lancamento == "Horas" and total_geral_horas > 0)
                 
                 if recalcular_e_atualizar:
-                    
                     # 1. ATUALIZA AS ATIVIDADES EXISTENTES NO DB
                     for h in horas_brutas_ativas:
                         hora_antiga = h['hora']
                         id_antigo = h['id']
-                        
-                        # Recalcula a porcentagem proporcional
                         nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100))
                         
-                        # A observação não precisa ser atualizada, apenas a porcentagem
                         if not atualizar_porcentagem_atividade(id_antigo, nova_porcentagem_recalculada):
                             st.error(f"❌ Erro crítico ao recalcular a atividade ID {id_antigo}.")
                             st.stop()
@@ -1691,7 +1666,6 @@ else:
                 sucesso = True
                 for l in lancamentos_validos:
                     porcent_final = int(round(l["porcentagem_final"]))
-                    # A observação já está formatada corretamente com o metadado no modo Horas
                     obs_final = l.get("observacao_final_db", l.get("observacao", ''))
                     
                     ok = salvar_atividade(
@@ -1709,10 +1683,7 @@ else:
                 if sucesso:
                     carregar_dados.clear()
                     
-                    # ==================================
-                    # LIMPEZA DE CAMPOS APÓS SALVAR (CORRIGIDO)
-                    # ==================================
-                    # Limpa campos dinâmicos (lançamentos)
+                    # LIMPEZA DE CAMPOS APÓS SALVAR
                     for i in range(qtd_lancamentos):
                         for key_prefix in ["desc_", "proj_", "valor_", "obs_", "idx_"]:
                             key = f"{key_prefix}{i}"
@@ -1720,11 +1691,10 @@ else:
                                 del st.session_state[key]
                                 
                     # Limpeza de quantidade
-                    if tipo_lancamento == "Porcentagem" and "lanc_qtd_p" in st.session_state:
+                    if "lanc_qtd_p" in st.session_state:
                         del st.session_state["lanc_qtd_p"]
-                    if tipo_lancamento == "Horas" and "lanc_qtd_h" in st.session_state:
+                    if "lanc_qtd_h" in st.session_state:
                         del st.session_state["lanc_qtd_h"]
-                    
                     
                     if total_final == 100:
                         st.balloons()
@@ -1741,8 +1711,6 @@ else:
         
         # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (Atualização em tempo real, fora do form) ---
         
-        # 1. PROCESSAMENTO DOS DADOS PARA PREVIEW E VALIDAÇÃO
-        # Repete a lógica de pré-cálculo para o preview (forçado)
         preview_data = []
         lancamentos_validos_preview = [l for l in lancamentos if l["valor"] > 0]
         soma_nova = 0
@@ -1751,9 +1719,8 @@ else:
         if lancamentos_validos_preview:
             
             if tipo_lancamento == "Horas":
-                # LÓGICA DE RECÁLCULO PROPORCIONAL
                 total_horas_novas = sum(l["valor"] for l in lancamentos_validos_preview)
-                total_geral_horas_preview += total_horas_novas # Total horas: existentes + novas
+                total_geral_horas_preview += total_horas_novas
                 
                 if total_geral_horas_preview > 0:
                     for l in lancamentos_validos_preview:
@@ -1763,11 +1730,9 @@ else:
                             "Projeto": l["projeto"],
                             "Porcentagem": porcent
                         })
-                        
                     soma_nova = sum(p["Porcentagem"] for p in preview_data)
             
             else: # Porcentagem
-                # LÓGICA DE SOMA SIMPLES (NÃO PROPORCIONAL)
                 for l in lancamentos_validos_preview:
                     preview_data.append({
                         "Descrição": l["descricao"],
@@ -1804,7 +1769,6 @@ else:
                 st.plotly_chart(fig_preview, use_container_width=True)
 
             with col_info:
-                # MELHORIA DE VISUAL: Usar st.metric para destaque
                 if tipo_lancamento == "Horas":
                     st.metric(label="Total Horas Brutas (Mês + Novo)", value=f"{total_geral_horas_preview:.1f} hrs")
                     st.metric(label="Total % para Recálculo", value=f"{soma_nova:.1f}%")
