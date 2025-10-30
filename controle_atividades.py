@@ -15,7 +15,7 @@ import numpy as np
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
 COR_CINZA = "#444444" # Cinza Escuro (Usado na paleta de gráficos)
-COR_FUNDO_APP = "#FFFFFF"      # Fundo Branco Limpo do corpo principal do App
+COR_FUNDO_APP = "#FFFFFF"     # Fundo Branco Limpo do corpo principal do App
 COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 # ----------------------------------
 
@@ -265,9 +265,6 @@ def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nov
     """
     Atualiza uma atividade específica. 
     Se for do tipo 'Horas' (possui metadado [HORA:X|OBS]), recalcula proporcionalmente as porcentagens.
-    
-    (CORREÇÃO 101%): Esta função agora chama 'recalcular_porcentagens_por_hora' 
-    para garantir a soma 100% via "Largest Remainder".
     """
     conn = get_db_connection()
     if conn is None:
@@ -301,10 +298,28 @@ def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nov
             """, (nova_descricao, novo_projeto, nova_porcentagem, nova_observacao, atividade_id))
             conn.commit()
 
-        # 3️⃣ Se for atividade por horas (antiga ou nova), recalcular TUDO
+        # 3️⃣ Se for atividade por horas, recalcular todas do mesmo mês/usuário
         if hora_antiga > 0 or hora_nova > 0:
-            # Chama a nova função centralizada que usa "Largest Remainder"
-            recalcular_porcentagens_por_hora(usuario, mes, ano)
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, observacao 
+                    FROM atividades
+                    WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';
+                """, (usuario, mes, ano))
+                atividades = cursor.fetchall()
+
+            atividades_horas = []
+            total_horas = 0
+            for a_id, obs in atividades:
+                h, _ = extrair_hora_bruta(obs)
+                if h > 0:
+                    atividades_horas.append((a_id, h))
+                    total_horas += h
+
+            if total_horas > 0:
+                for a_id, h in atividades_horas:
+                    nova_porcentagem_calc = int(round((h / total_horas) * 100))
+                    atualizar_porcentagem_atividade(a_id, nova_porcentagem_calc)
 
         return True
 
@@ -647,102 +662,6 @@ def excluir_atividade(atividade_id):
     """Exclui uma atividade específica. É um alias para apagar_atividade."""
     return apagar_atividade(atividade_id)
 
-# ===================================================================
-# NOVA FUNÇÃO (CORREÇÃO 101%)
-# ===================================================================
-def recalcular_porcentagens_por_hora(usuario, mes, ano):
-    """
-    Busca todas as atividades ativas (não Rejeitadas) de um usuário/mês/ano
-    e recalcula TODAS as porcentagens para que somem 100% usando o 
-    método "Largest Remainder".
-    
-    DECISÃO DE DESIGN: Atividades em modo "Hora" tomam 100% do mês.
-    Atividades em modo "%" (sem metadado) são ZERADAS.
-    """
-    conn = get_db_connection()
-    if conn is None: return False
-    
-    try:
-        # 1. Buscar TODAS as atividades ativas do mês
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT id, observacao 
-                FROM atividades
-                WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';
-            """, (usuario, mes, ano))
-            atividades = cursor.fetchall()
-
-        atividades_com_hora = []
-        atividades_sem_hora_ids = [] # IDs das atividades em modo %
-        total_horas = 0
-        
-        for a_id, obs in atividades:
-            h, _ = extrair_hora_bruta(obs)
-            if h > 0:
-                atividades_com_hora.append({'id': a_id, 'hora': h})
-                total_horas += h
-            else:
-                atividades_sem_hora_ids.append(a_id)
-
-        # Se não houver horas, não há o que recalcular (mantém as de %)
-        if total_horas <= 0:
-            conn.close()
-            return True 
-
-        # 2. Aplicar "Largest Remainder Method"
-        
-        # 2a. Calcular float percentages e remainders
-        for item in atividades_com_hora:
-            percent_float = (item['hora'] / total_horas) * 100
-            item['percent_int'] = int(percent_float) # Floor (parte inteira)
-            item['remainder'] = percent_float - item['percent_int'] # Resto (decimal)
-
-        # 2b. Calcular a diferença de arredondamento
-        total_int = sum(item['percent_int'] for item in atividades_com_hora)
-        diff = 100 - total_int # Quantos '1' faltam para dar 100
-
-        # 2c. Sort by remainder (maior resto primeiro)
-        atividades_com_hora.sort(key=lambda x: x['remainder'], reverse=True)
-
-        # 2d. Distribuir a diferença
-        for i in range(diff):
-            if i < len(atividades_com_hora): # Garante que não estoure
-                atividades_com_hora[i]['percent_int'] += 1
-
-        # 3. Atualizar no DB (em uma única transação)
-        with conn.cursor() as cursor:
-            updates_horas = []
-            for item in atividades_com_hora:
-                updates_horas.append((item['percent_int'], item['id']))
-            
-            # 3a. Atualiza atividades COM hora
-            update_query = "UPDATE atividades SET porcentagem = %s WHERE id = %s"
-            if updates_horas:
-                psycopg2.extras.execute_batch(cursor, update_query, updates_horas)
-            
-            # 3b. ZERA atividades SEM hora (modo %)
-            # Este é o comportamento que força o modo "Horas" a ser exclusivo
-            if atividades_sem_hora_ids:
-                # Converte lista de IDs para uma tupla para o 'IN'
-                ids_tuple = tuple(atividades_sem_hora_ids)
-                # Usa ANY(%s) que é a forma otimizada do psycopg2 para IN (tuple)
-                cursor.execute("UPDATE atividades SET porcentagem = 0 WHERE id = ANY(%s)", (ids_tuple,))
-            
-            conn.commit()
-        return True
-    
-    except Exception as e:
-        st.error(f"Erro ao recalcular porcentagens por hora: {e}")
-        conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
-# ===================================================================
-# FIM DA NOVA FUNÇÃO
-# ===================================================================
-
-
 # ==============================
 # 5. Dados fixos
 # ==============================
@@ -839,9 +758,6 @@ def cancelar_edicao():
 def handle_delete(atividade_id):
     """
     Apaga uma atividade e, se for do tipo Horas, recalcula as porcentagens restantes.
-    
-    (CORREÇÃO 101%): Esta função agora chama 'recalcular_porcentagens_por_hora' 
-    para garantir a soma 100% via "Largest Remainder".
     """
     # 1️⃣ Obter dados da atividade antes de excluir
     conn = get_db_connection()
@@ -871,11 +787,37 @@ def handle_delete(atividade_id):
         st.error("Erro ao excluir atividade.")
         return
 
-    # 3️⃣ Verificar se era modo Horas e recalcular TUDO
+    # 3️⃣ Verificar se é modo Horas e recalcular
     hora, _ = extrair_hora_bruta(observacao)
     if hora > 0:
-        # Chama a nova função centralizada
-        recalcular_porcentagens_por_hora(usuario, mes, ano)
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Buscar as demais atividades do mesmo usuário/mês/ano
+                cursor.execute("""
+                    SELECT id, observacao 
+                    FROM atividades 
+                    WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';
+                """, (usuario, mes, ano))
+                atividades_restantes = cursor.fetchall()
+
+            # Extrair horas brutas restantes
+            atividades_horas = []
+            total_horas = 0
+            for a_id, obs in atividades_restantes:
+                h, _ = extrair_hora_bruta(obs)
+                if h > 0:
+                    atividades_horas.append((a_id, h))
+                    total_horas += h
+
+            # Recalcular porcentagem proporcional
+            if total_horas > 0:
+                for a_id, h in atividades_horas:
+                    nova_porcentagem = int(round((h / total_horas) * 100))
+                    atualizar_porcentagem_atividade(a_id, nova_porcentagem)
+
+        finally:
+            conn.close()
 
     # 4️⃣ Atualizar interface
     carregar_dados.clear()
@@ -1221,14 +1163,14 @@ else:
                     gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
                     # Adiciona um placeholder para evitar erro se a lista estiver vazia
                     if not gerentes_remover_list:
-                                 gerentes_remover_list = ["Nenhum Gerente Configurado"]
+                                    gerentes_remover_list = ["Nenhum Gerente Configurado"]
                                 
                     gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area", disabled=("Nenhum Gerente Configurado" in gerentes_remover_list)) 
                     
                     
                     subordinados_do_gerente = []
                     if gerente_remover != "Nenhum Gerente Configurado":
-                                 subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                                    subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
                     
                     if not subordinados_do_gerente:
                         subordinados_do_gerente = ["Nenhuma Pessoa da Equipe"]
@@ -1263,20 +1205,20 @@ else:
             st.stop()
         
         if st.session_state["admin"]:
-                   # Admin seleciona qualquer time
-                   gerente_a_analisar = st.selectbox(
-                       "Selecione o Gerente da Área para Análise", 
-                       sorted(gerentes_com_time)
-                   )
+                    # Admin seleciona qualquer time
+                    gerente_a_analisar = st.selectbox(
+                        "Selecione o Gerente da Área para Análise", 
+                        sorted(gerentes_com_time)
+                    )
         else:
-                   # Gerente só vê o próprio time
-                   
+                    # Gerente só vê o próprio time
+                    
             gerente_a_analisar = usuario_logado
             st.markdown(f"**Gerente da Área em Análise:** **{gerente_a_analisar}**") 
 
         if gerente_a_analisar not in gerentes_com_time:
-                   st.error("Gerente da Área inválido selecionado.")
-                   st.stop()
+                    st.error("Gerente da Área inválido selecionado.")
+                    st.stop()
 
 
         # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
@@ -1418,7 +1360,7 @@ else:
                     """
                     st.markdown(info_html, unsafe_allow_html=True)
 
-                    
+                
                 
                 with col2_d:
                     # --- USANDO on_click CALLBACK ---
@@ -1500,11 +1442,11 @@ else:
         # 2. CÁLCULO DE HORAS BRUTAS (para o modo Horas - metadado na 'observacao')
         horas_brutas_ativas = []
         for a in atividades_ativas:
-             hora, _ = extrair_hora_bruta(a.get('observacao', ''))
-             if hora > 0:
-                 # Armazena a observação original COMPLETA para re-encapsulamento
-                 horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
-                 
+            hora, _ = extrair_hora_bruta(a.get('observacao', ''))
+            if hora > 0:
+                # Armazena a observação original COMPLETA para re-encapsulamento
+                horas_brutas_ativas.append({'id': a['id'], 'hora': hora, 'obs_original_completa': a.get('observacao', '')})
+                
         total_horas_existentes = sum(h['hora'] for h in horas_brutas_ativas)
 
         # Tipo de lançamento
@@ -1517,12 +1459,23 @@ else:
             st.session_state['lanc_tipo_aba'] = "Porcentagem"
         
         
+        # --- LÓGICA SIMPLIFICADA (INÍCIO) ---
+        # 1. Defina um valor padrão com base no state da aba.
+        if st.session_state['lanc_tipo_aba'] == "Horas":
+            tipo_lancamento = "Horas"
+            qtd_lancamentos = st.session_state.get("lanc_qtd_h", 1)
+        else:
+            tipo_lancamento = "Porcentagem"
+            qtd_lancamentos = st.session_state.get("lanc_qtd_p", 1)
+        # --- LÓGICA SIMPLIFICADA (FIM) ---
+
+        
         with tab_porcentagem:
             st.session_state['lanc_tipo_aba'] = "Porcentagem"
             st.info(
-                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
-                 f"📊 **Total já alocado:** **{total_existente:.1f}%** \n"
-                 f"💡 **Saldo restante disponível:** **{saldo_restante:.1f}%**"
+                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
+                f"📊 **Total já alocado:** **{total_existente:.1f}%** \n"
+                f"💡 **Saldo restante disponível:** **{saldo_restante:.1f}%**"
             )
             # Input de quantidade dentro da aba
             qtd_lancamentos_p = st.number_input(
@@ -1533,15 +1486,16 @@ else:
                 step=1,
                 key="lanc_qtd_p"
             )
+            # 2. Quando esta aba estiver ativa, ela sobrescreve as variáveis
             tipo_lancamento = "Porcentagem"
             qtd_lancamentos = qtd_lancamentos_p
             
         with tab_horas:
             st.session_state['lanc_tipo_aba'] = "Horas"
             st.info(
-                 f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
-                 f"⏳ **Horas brutas já lançadas:** **{total_horas_existentes:.1f} hrs** \n"
-                 f"💡 **Modo Horas:** Todas as atividades do mês (em horas) serão recalculadas para somar 100%. Lançamentos em % serão zerados."
+                f"📅 **Mês selecionado:** {mes_select}/{ano_select} \n"
+                f"⏳ **Horas brutas já lançadas:** **{total_horas_existentes:.1f} hrs** \n"
+                f"💡 **Modo Horas:** Todas as atividades do mês serão recalculadas para somar 100%."
             )
             # Input de quantidade dentro da aba
             qtd_lancamentos_h = st.number_input(
@@ -1552,74 +1506,107 @@ else:
                 step=1,
                 key="lanc_qtd_h"
             )
+            # 2. Quando esta aba estiver ativa, ela sobrescreve as variáveis
             tipo_lancamento = "Horas"
             qtd_lancamentos = qtd_lancamentos_h
-
-        # Ajusta o 'tipo_lancamento' baseado em qual aba foi clicada
-        if st.session_state['lanc_tipo_aba'] == "Horas":
-            tipo_lancamento = "Horas"
-            qtd_lancamentos = st.session_state.get("lanc_qtd_h", 1)
-        else:
-            tipo_lancamento = "Porcentagem"
-            qtd_lancamentos = st.session_state.get("lanc_qtd_p", 1)
 
 
         st.markdown("---")
 
         # --- COLETA DE DADOS (FORMULÁRIO PRINCIPAL) ---
-        lancamentos = []
-        # MELHORIA DE VISUAL: Encapsular o formulário de lançamentos em um único Form para melhor UX
         with st.form("form_multi_lancamentos"):
-            for i in range(qtd_lancamentos):
-                # Início do Bloco de Lançamento
-                st.markdown(f"### Lançamento {i+1}") # Título para o bloco
-                
-                # Campos um embaixo do outro, ocupando a largura total (sem colunas internas)
-                
-                descricao = st.selectbox(
-                    f"Descrição",
-                    DESCRICOES_SELECT,
-                    key=f"desc_{i}",
-                    label_visibility="visible"
-                )
-                projeto = st.selectbox(
-                    f"Projeto",
-                    PROJETOS_SELECT,
-                    key=f"proj_{i}",
-                    label_visibility="visible"
-                )
-
+            
+            # --- MUDANÇA PRINCIPAL: Criar um layout de "grid" ---
+            
+            # 1. CRIAR O CABEÇALHO DA "TABELA"
+            # Define as proporções das colunas
+            col_proporcoes = [0.5, 4, 4, 1.5, 3] # [Nº, Descrição, Projeto, Valor, Observação]
+            
+            header_cols = st.columns(col_proporcoes)
+            with header_cols[0]:
+                st.markdown("**Nº**")
+            with header_cols[1]:
+                st.markdown("**Descrição**")
+            with header_cols[2]:
+                st.markdown("**Projeto**")
+            with header_cols[3]:
+                # Label da coluna de valor muda com a aba
                 if tipo_lancamento == "Porcentagem":
-                    valor = st.number_input(
-                        f"Porcentagem (%)",
-                        min_value=0.0,
-                        max_value=100.0,
-                        value=st.session_state.get(f"valor_{i}", 0.0),
-                        step=1.0,
-                        key=f"valor_{i}",
-                        label_visibility="visible"
+                    st.markdown("**%**")
+                else:
+                    st.markdown("**Horas**")
+            with header_cols[4]:
+                st.markdown("**Observação (Opcional)**")
+            
+            st.markdown("""<hr style="margin: 0.5rem 0;">""", unsafe_allow_html=True) # Divisor sutil
+
+            lancamentos = [] # Reinicia a lista de lançamentos
+
+            # 2. CRIAR AS LINHAS DE INPUT (DENTRO DO LOOP)
+            for i in range(qtd_lancamentos):
+                row_cols = st.columns(col_proporcoes)
+                
+                # Coluna 0: Número
+                with row_cols[0]:
+                    # Adiciona o número do lançamento alinhado
+                    # Usamos um 'text_input' desabilitado para garantir o alinhamento vertical
+                    st.text_input("Nº", value=f"{i+1}", key=f"idx_{i}", disabled=True, label_visibility="collapsed")
+                
+                # Coluna 1: Descrição
+                with row_cols[1]:
+                    descricao = st.selectbox(
+                        f"Descrição {i}", # Key/label único
+                        DESCRICOES_SELECT,
+                        key=f"desc_{i}",
+                        label_visibility="collapsed", # Esconde o label
                     )
-                else: # Horas
-                    valor = st.number_input(
-                        f"Horas",
-                        min_value=0.0,
-                        max_value=200.0,
-                        value=st.session_state.get(f"valor_{i}", 0.0),
-                        step=0.5,
-                        key=f"valor_{i}",
-                        label_visibility="visible"
+                
+                # Coluna 2: Projeto
+                with row_cols[2]:
+                    projeto = st.selectbox(
+                        f"Projeto {i}", # Key/label único
+                        PROJETOS_SELECT,
+                        key=f"proj_{i}",
+                        label_visibility="collapsed", # Esconde o label
                     )
 
-                # 💡 CORREÇÃO: Define o valor inicial como vazio ("") se a chave não existir.
-                observacao = st.text_area(f"Observação (Opcional)", 
-                                            key=f"obs_{i}", 
-                                            value=st.session_state.get(f"obs_{i}", ""))
+                # Coluna 3: Valor (% ou Horas)
+                with row_cols[3]:
+                    if tipo_lancamento == "Porcentagem":
+                        valor = st.number_input(
+                            f"Porcentagem (%) {i}", # Key/label único
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=st.session_state.get(f"valor_{i}", 0.0),
+                            step=1.0,
+                            key=f"valor_{i}",
+                            label_visibility="collapsed", # Esconde o label
+                            placeholder="%" 
+                        )
+                    else: # Horas
+                        valor = st.number_input(
+                            f"Horas {i}", # Key/label único
+                            min_value=0.0,
+                            max_value=200.0,
+                            value=st.session_state.get(f"valor_{i}", 0.0),
+                            step=0.5,
+                            key=f"valor_{i}",
+                            label_visibility="collapsed", # Esconde o label
+                            placeholder="Horas"
+                        )
                 
-                # Divisor sutil entre os blocos
-                if i < qtd_lancamentos - 1:
-                    st.markdown('<div class="vertical-block-separator"></div>', unsafe_allow_html=True)
-                
-                # --- FIM DA ALTERAÇÃO PARA BLOCOS VERTICAIS ---
+                # Coluna 4: Observação
+                with row_cols[4]:
+                    observacao = st.text_area(
+                        f"Observação (Opcional) {i}", # Key/label único
+                        key=f"obs_{i}", 
+                        value=st.session_state.get(f"obs_{i}", ""),
+                        label_visibility="collapsed", # Esconde o label
+                        placeholder="Observação",
+                        height=50 # Altura menor para a linha
+                    )
+                    
+                # --- FIM DA ALTERAÇÃO PARA LAYOUT "GRID" ---
 
                 # Armazena os dados atuais do estado de sessão
                 lancamentos.append({
@@ -1628,100 +1615,118 @@ else:
                     "valor": valor,
                     "observacao": observacao
                 })
-
+            
             # --- BOTÃO FINAL E LÓGICA DE SALVAMENTO ---
-            # O processamento e validação agora ocorrem quando o botão de submit é clicado
+            # O botão de submit deve ficar DENTRO do form, mas FORA das colunas/loop
+            st.markdown("---") # Divisor antes do botão
             submitted = st.form_submit_button("💾 Salvar Lançamentos", use_container_width=True)
 
-            # ===================================================================
-            # (CORREÇÃO 101%) - LÓGICA DE SUBMIT MODIFICADA
-            # ===================================================================
+
             if submitted:
                 if mes_num is None:
                     st.error("Selecione um mês válido.")
                     st.stop()
 
-                # Filtra lançamentos com valor > 0
+                # Revalidação de campos e totais antes de salvar
+                # Filtra lançamentos com valor > 0 para não poluir o cálculo proporcional
                 lancamentos_validos = [l for l in lancamentos if l["valor"] > 0] 
                 
                 if not lancamentos_validos:
                     st.error("Nenhum lançamento válido (com valor > 0) para salvar.")
                     st.stop()
-                    
+                        
                 for l in lancamentos_validos:
                     if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
                         st.error("Todos os lançamentos válidos devem ter uma Descrição e um Projeto selecionados.")
                         st.stop()
-                
-                
-                # Prepara variáveis
-                total_final = 0
-                sucesso = True
-                
-                # --- LÓGICA PARA MODO HORAS ---
-                if tipo_lancamento == "Horas":
-                    # 1. Salva as novas atividades com porcentagem 0 (temporário)
-                    for l in lancamentos_validos:
-                        obs_real = l["observacao"] if l["observacao"] else ""
-                        obs_final_db = f"[HORA:{l['valor']}|{obs_real}]"
-                        
-                        ok = salvar_atividade(
-                            st.session_state["usuario"],
-                            mes_num,
-                            ano_select,
-                            l["descricao"],
-                            l["projeto"],
-                            0,  # Salva com 0, pois o recálculo cuidará disso
-                            obs_final_db
-                        )
-                        if not ok:
-                            sucesso = False
                     
-                    # 2. Chama o recálculo global de horas (Largest Remainder)
-                    if sucesso:
-                        if not recalcular_porcentagens_por_hora(st.session_state["usuario"], mes_num, ano_select):
-                            sucesso = False
-                            st.error("Falha ao recalcular as porcentagens de horas.")
-                    
-                    total_final = 100.0 # Modo horas sempre trava em 100
+                # Prepara variáveis de cálculo
+                soma_nova = 0
+                total_geral_horas = total_horas_existentes 
+                
+                # Simula o cálculo da pré-visualização para a validação final
+                for l in lancamentos_validos:
+                    if tipo_lancamento == "Horas":
+                            soma_nova += l["valor"]
+                    else:
+                            soma_nova += l["valor"]
 
-                # --- LÓGICA PARA MODO PORCENTAGEM ---
-                else: 
-                    # Validação de 100% para o modo %
-                    soma_nova = sum(l["valor"] for l in lancamentos_validos)
+                if tipo_lancamento == "Horas":
+                    total_geral_horas += soma_nova
+                    if total_geral_horas <= 0:
+                            st.error("⚠️ O total de horas brutas (existentes + novas) é zero. Adicione um valor positivo.")
+                            st.stop()
+                    # Recalculo proporcional e atribuição dos valores finais
+                    for l in lancamentos_validos:
+                            porcent = (l["valor"] / total_geral_horas) * 100
+                            l["porcentagem_final"] = round(porcent, 2)
+                            obs_real = l["observacao"] if l["observacao"] else ""
+                            l["observacao_final_db"] = f"[HORA:{l['valor']}|{obs_real}]" # CRÍTICO: Armazena o metadado
+                    total_final = 100.0
+                else: # Porcentagem
                     total_final = total_existente + soma_nova
+                    # Atribuição dos valores finais para porcentagem
+                    for l in lancamentos_validos:
+                        l["porcentagem_final"] = l["valor"]
+                        l["observacao_final_db"] = l["observacao"]
                     
                     if total_final > 100.0 + 0.001:
                         st.error(
-                            f"⚠️ O total de alocação excede o limite de 100% para {mes_select}/{ano_select}. ({total_final:.1f}%)"
+                            f"⚠️ O total de alocação excede o limite de 100% para {mes_select}/{ano_select}. Por favor, ajuste os valores."
                         )
                         st.stop()
+                
+                # Lógica de Recálculo e Update (Apenas para o modo HORAS)
+                recalcular_e_atualizar = (tipo_lancamento == "Horas" and total_geral_horas > 0)
+                
+                if recalcular_e_atualizar:
                     
-                    # Salva as atividades em modo %
-                    for l in lancamentos_validos:
-                        ok = salvar_atividade(
-                            st.session_state["usuario"],
-                            mes_num,
-                            ano_select,
-                            l["descricao"],
-                            l["projeto"],
-                            int(round(l["valor"])), # Salva a porcentagem direto
-                            l["observacao"]
-                        )
-                        if not ok:
-                            sucesso = False
+                    # 1. ATUALIZA AS ATIVIDADES EXISTENTES NO DB
+                    for h in horas_brutas_ativas:
+                        hora_antiga = h['hora']
+                        id_antigo = h['id']
+                        
+                        # Recalcula a porcentagem proporcional
+                        nova_porcentagem_recalculada = int(round((hora_antiga / total_geral_horas) * 100))
+                        
+                        # A observação não precisa ser atualizada, apenas a porcentagem
+                        if not atualizar_porcentagem_atividade(id_antigo, nova_porcentagem_recalculada):
+                            st.error(f"❌ Erro crítico ao recalcular a atividade ID {id_antigo}.")
+                            st.stop()
 
-                # --- RESULTADO FINAL ---
+                # 2. SALVA OS NOVOS LANÇAMENTOS
+                sucesso = True
+                for l in lancamentos_validos:
+                    porcent_final = int(round(l["porcentagem_final"]))
+                    # A observação já está formatada corretamente com o metadado no modo Horas
+                    obs_final = l.get("observacao_final_db", l.get("observacao", ''))
+                    
+                    ok = salvar_atividade(
+                        st.session_state["usuario"],
+                        mes_num,
+                        ano_select,
+                        l["descricao"],
+                        l["projeto"],
+                        porcent_final, 
+                        obs_final
+                    )
+                    if not ok:
+                        sucesso = False
+
                 if sucesso:
                     carregar_dados.clear()
                     
+                    # ==================================
+                    # LIMPEZA DE CAMPOS APÓS SALVAR (CORRIGIDO)
+                    # ==================================
                     # Limpa campos dinâmicos (lançamentos)
                     for i in range(qtd_lancamentos):
-                        for key_prefix in ["desc_", "proj_", "valor_", "obs_"]:
+                        for key_prefix in ["desc_", "proj_", "valor_", "obs_", "idx_"]:
                             key = f"{key_prefix}{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
                                 
+                    # Limpeza de quantidade
                     if tipo_lancamento == "Porcentagem" and "lanc_qtd_p" in st.session_state:
                         del st.session_state["lanc_qtd_p"]
                     if tipo_lancamento == "Horas" and "lanc_qtd_h" in st.session_state:
@@ -1731,7 +1736,7 @@ else:
                     if total_final == 100:
                         st.balloons()
                         
-                    total_lanc_msg = f"{total_final:.1f}%"
+                    total_lanc_msg = "100%" if recalcular_e_atualizar else f"{total_final:.1f}%"
                     
                     st.success(
                         f"✅ **{len(lancamentos_validos)}** lançamentos salvos. \n"
@@ -1740,13 +1745,11 @@ else:
                     st.rerun()
                 else:
                     st.error("❌ Ocorreu um erro ao salvar os lançamentos. Verifique os dados.")
-            # ===================================================================
-            # FIM DO BLOCO DE SUBMIT MODIFICADO
-            # ===================================================================
-            
+        
         # --- PRÉ-VISUALIZAÇÃO E CÁLCULO (Atualização em tempo real, fora do form) ---
         
         # 1. PROCESSAMENTO DOS DADOS PARA PREVIEW E VALIDAÇÃO
+        # Repete a lógica de pré-cálculo para o preview (forçado)
         preview_data = []
         lancamentos_validos_preview = [l for l in lancamentos if l["valor"] > 0]
         soma_nova = 0
@@ -1760,37 +1763,12 @@ else:
                 total_geral_horas_preview += total_horas_novas # Total horas: existentes + novas
                 
                 if total_geral_horas_preview > 0:
-                    
-                    # (Preview usa o Largest Remainder simples, sem salvar no DB)
-                    temp_atividades_horas = []
-                    
-                    # Adiciona horas existentes
-                    for h in horas_brutas_ativas:
-                        temp_atividades_horas.append({'desc': f"Existente (ID {h['id']})", 'hora': h['hora']})
-                    # Adiciona horas novas
                     for l in lancamentos_validos_preview:
-                        temp_atividades_horas.append({'desc': l['descricao'], 'hora': l['valor']})
-
-                    # Aplicar "Largest Remainder Method" no preview
-                    for item in temp_atividades_horas:
-                        percent_float = (item['hora'] / total_geral_horas_preview) * 100
-                        item['percent_int'] = int(percent_float)
-                        item['remainder'] = percent_float - item['percent_int']
-
-                    total_int_preview = sum(item['percent_int'] for item in temp_atividades_horas)
-                    diff_preview = 100 - total_int_preview
-                    temp_atividades_horas.sort(key=lambda x: x['remainder'], reverse=True)
-
-                    for i in range(diff_preview):
-                        if i < len(temp_atividades_horas):
-                            temp_atividades_horas[i]['percent_int'] += 1
-                    
-                    # Prepara dados para o gráfico
-                    for item in temp_atividades_horas:
-                         preview_data.append({
-                            "Descrição": item['desc'],
-                            "Projeto": "N/A", # Preview não precisa de projeto
-                            "Porcentagem": item['percent_int'] # Usa o valor corrigido
+                        porcent = (l["valor"] / total_geral_horas_preview) * 100
+                        preview_data.append({
+                            "Descrição": l["descricao"],
+                            "Projeto": l["projeto"],
+                            "Porcentagem": porcent
                         })
                         
                     soma_nova = sum(p["Porcentagem"] for p in preview_data)
@@ -1810,17 +1788,13 @@ else:
             total_final_preview = total_existente + soma_nova
             saldo_final_preview = max(0, 100 - total_final_preview)
         else:
-            # Modo horas sempre será 100% (se houver horas)
             total_final_preview = 100.0 if total_geral_horas_preview > 0 else 0.0
-            # Saldo (modo % existente) será zerado se modo horas for usado
-            saldo_final_preview = 0.0 
+            saldo_final_preview = max(0, 100 - total_final_preview)
             
         st.subheader("📊 Pré-visualização dos lançamentos")
         
         if preview_data:
-            # Filtra itens com 0% para não poluir o gráfico
             df_preview = pd.DataFrame(preview_data)
-            df_preview = df_preview[df_preview["Porcentagem"] > 0]
 
             col_graf, col_info = st.columns([2, 1])
             with col_graf:
@@ -1828,22 +1802,21 @@ else:
                     df_preview,
                     names="Descrição",
                     values="Porcentagem",
-                    title="Distribuição proporcional (Existentes + Novos)",
+                    title="Distribuição proporcional dos lançamentos novos",
                     hole=.4,
                     color_discrete_sequence=SINAPSIS_PALETTE
                 )
             
-                fig_preview.update_traces(texttemplate='%{value:.0f}%', textposition='inside')
+                fig_preview.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
                 st.plotly_chart(fig_preview, use_container_width=True)
 
             with col_info:
                 # MELHORIA DE VISUAL: Usar st.metric para destaque
                 if tipo_lancamento == "Horas":
                     st.metric(label="Total Horas Brutas (Mês + Novo)", value=f"{total_geral_horas_preview:.1f} hrs")
-                    st.metric(label="Total % (Recalculado)", value=f"{soma_nova:.0f}%")
+                    st.metric(label="Total % para Recálculo", value=f"{soma_nova:.1f}%")
                     if total_geral_horas_preview == 0:
                         st.warning("Adicione horas (acima de zero) para calcular a proporção.")
-                    st.caption("Atividades em modo % serão zeradas.")
                 else:
                     st.metric(label="Total Novo a Ser Lançado", value=f"{soma_nova:.1f}%")
                     st.metric(label="Total Atual + Novo", value=f"{total_final_preview:.1f}%")
@@ -1939,17 +1912,9 @@ else:
                 if total_novo > 100.0 + 0.001 and horas_antigas_total == 0:
                     st.error(f"⚠️ A cópia excede 100% de alocação para {mes_select}/{ano_select} ({total_novo:.1f}%). Exclua ou ajuste lançamentos atuais antes de copiar.")
                     st.stop()
-                
-                # (CORREÇÃO 101%) Define se o recálculo de horas é necessário após a cópia
-                recalcular_horas_apos_copia = False
 
                 for a in antigos:
                     # Preserva a observação, incluindo o metadado de horas, se existir
-                    
-                    # Se alguma atividade antiga tinha horas, marca para recalcular
-                    if extrair_hora_bruta(a["observacao"])[0] > 0:
-                        recalcular_horas_apos_copia = True
-                    
                     salvar_atividade(
                         st.session_state["usuario"],
                         mes_num,
@@ -1959,11 +1924,6 @@ else:
                         a["porcentagem"],
                         a["observacao"]
                     )
-                
-                # Se copiamos atividades com horas, rodamos o recálculo global
-                if recalcular_horas_apos_copia:
-                    recalcular_porcentagens_por_hora(st.session_state["usuario"], mes_num, ano_select)
-
                 carregar_dados.clear()
                 st.success("✅ Lançamentos do mês anterior copiados com sucesso!")
                 st.rerun()
@@ -1986,8 +1946,6 @@ else:
 
         # Exibir gráfico detalhado
         df_graf = pd.DataFrame(atividades_ativas_mes)
-        df_graf = df_graf[df_graf['porcentagem'] > 0] # (Correção 101%) Não mostra zerados
-        
         df_graf = df_graf.groupby("descricao", as_index=False)["porcentagem"].sum()
         # MELHORIA DE VISUAL: Usar cor mais clara no Plotly
         fig_graf = px.pie(
@@ -1998,7 +1956,7 @@ else:
             hole=.4,
             color_discrete_sequence=SINAPSIS_PALETTE
         )
-        fig_graf.update_traces(texttemplate='%{value:.0f}%', textposition='inside')
+        fig_graf.update_traces(texttemplate='%{value:.1f}%', textposition='inside')
         st.plotly_chart(fig_graf, use_container_width=True)
 
         # Exibir lista com edição
@@ -2058,31 +2016,27 @@ else:
                 )
                 
                 if hora_bruta > 0:
-                     st.caption(f"**Horas Brutas Registradas (Metadado):** {hora_bruta:.1f} hrs. (A porcentagem é recalculada automaticamente)")
+                     st.caption(f"**Horas Brutas Registradas (Metadado):** {hora_bruta:.1f} hrs")
                 
                 # O BOTÃO SALVAR AGORA É O st.form_submit_button (O ÚNICO PERMITIDO NO FORM)
                 submitted = st.form_submit_button(f"💾 Salvar alterações", disabled=disabled_edit, use_container_width=True)
 
                 if submitted:
                     
-                    # (CORREÇÃO 101%) A validação de 100% só se aplica ao modo %
-                    # Se for modo horas, o recálculo global cuidará disso.
+                    # Validação 100%
+                    total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
                     
-                    observacao_para_salvar = ""
+                    if (total_excluido + nova_porcentagem) > 100.0 + 0.001:
+                        st.error(f"⚠️ A edição ultrapassa 100% de alocação para {mes_select}/{ano_select} ({total_excluido + nova_porcentagem:.1f}%). Ajuste o valor.")
+                        st.stop()
+                        
+                    # Recria o metadado (se houver horas brutas)
                     if hora_bruta > 0:
-                        # Se é modo horas, recria o metadado
                         observacao_para_salvar = f"[HORA:{hora_bruta}|{nova_observacao_input}]"
                     else:
-                        # Se é modo %, salva a obs limpa e valida o 100%
                         observacao_para_salvar = nova_observacao_input
-                        
-                        total_excluido = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_select, excluido_id=a['id'])
-                        if (total_excluido + nova_porcentagem) > 100.0 + 0.001:
-                            st.error(f"⚠️ A edição ultrapassa 100% de alocação para {mes_select}/{ano_select} ({total_excluido + nova_porcentagem:.1f}%). Ajuste o valor.")
-                            st.stop()
-                            
+
                     # Salva usando a nova função com Descrição e Projeto
-                    # (A função 'atualizar_atividade_completa' agora chama o recálculo de horas se necessário)
                     ok = atualizar_atividade_completa(a["id"], nova_descricao, novo_projeto, nova_porcentagem, observacao_para_salvar)
 
                     if ok:
@@ -2100,7 +2054,7 @@ else:
                 if st.button(
                     f"🗑️ Excluir Lançamento", 
                     key=f"btn_excluir_minhas_{a['id']}", 
-                    on_click=handle_delete, # handle_delete foi corrigido
+                    on_click=handle_delete, 
                     args=(a["id"],),
                     use_container_width=True
                 ):
@@ -2228,7 +2182,7 @@ else:
     elif aba == "Importar Dados" and st.session_state["admin"]:
         st.header("⬆️ Importação de Dados em Massa (Admin)")
         st.warning(
-            "⚠️ **Aviso de Formato:** Seu arquivo deve conter as colunas: **'Nome'**, **'Data'** (Mês/Ano ou DD/MM/AAAA), **'Descrição'**, **'Projeto'** (valor decimal, ex: 0.25 para 25%) e **'Observação (Opcional)'**. **O status será definido como 'Pendente'.**"
+            "⚠️ **Aviso de Formato:** Seu arquivo deve conter as colunas: **'Nome'**, **'Data'** (Mês/Ano ou DD/MM/AAAA), **'Descrição'**, **'Projeto'**, **'Porcentagem'** (valor decimal, ex: 0.25 para 25%) e **'Observação (Opcional)'**. **O status será definido como 'Pendente'.**"
             
         )
         
@@ -2332,7 +2286,7 @@ else:
                             st.info(f"Usuários encontrados no arquivo: **{len(usuarios_csv)}**. Novos usuários cadastrados: **{inserted_count}** (senha padrão: '123').")
                         else:
                             st.info(f"Todos os {len(usuarios_csv)} usuários do arquivo já estão cadastrados no sistema.")
-                    
+                        
                         
                         # --- Limpeza e Transformação dos Dados de Atividade ---
                     # Tenta converter a data, primeiro com dayfirst=True
@@ -2433,3 +2387,4 @@ else:
             except Exception as e:
                 # MELHORIA DE VISUAL: Exibir a exceção completa
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
