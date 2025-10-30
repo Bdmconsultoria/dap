@@ -1401,9 +1401,9 @@ else:
                 st.markdown('<div style="border-bottom: 1px solid #eee; margin: 5px 0 15px 0;"></div>', unsafe_allow_html=True)
 
 
-    # ==============================
-    # 7.3. Lançar Atividade (Versão Final Completa com Recálculo de Horas)
-    # ==============================
+    # ==================================================================
+    # INÍCIO DO BLOCO CORRIGIDO - "Lançar Atividade"
+    # ==================================================================
     elif aba == "Lançar Atividade":
         st.header("📝 Lançar Atividade (Mensal)")
 
@@ -1454,14 +1454,14 @@ else:
         
         tab_porcentagem, tab_horas = st.tabs(["Lançamento por Porcentagem", "Lançamento por Horas"])
         
-        # ==========================================================
-        # INÍCIO DA CORREÇÃO
+        
+        # --- CORREÇÃO APLICADA ---
+        # Removida a lógica antiga que usava st.session_state['lanc_tipo_aba']
         # Define valores padrão. Eles serão sobrepostos pela aba ativa.
-        # A LÓGICA ANTIGA COM st.session_state['lanc_tipo_aba'] FOI REMOVIDA.
-        # ==========================================================
         tipo_lancamento = "Porcentagem"
         qtd_lancamentos = 1
-        
+        # --- FIM DA CORREÇÃO ---
+
         
         with tab_porcentagem:
             # REMOVIDO: st.session_state['lanc_tipo_aba'] = "Porcentagem"
@@ -1821,6 +1821,9 @@ else:
         else:
             st.info("Preencha os lançamentos para visualizar o gráfico e os totais.")
         
+    # ==================================================================
+    # FIM DO BLOCO CORRIGIDO
+    # ==================================================================
 
 
     # ==============================
