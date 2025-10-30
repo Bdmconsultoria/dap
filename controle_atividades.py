@@ -1455,16 +1455,13 @@ else:
         tab_porcentagem, tab_horas = st.tabs(["Lançamento por Porcentagem", "Lançamento por Horas"])
         
         # ==========================================================
-        # INÍCIO DA CORREÇÃO (BLOCO SUBSTITUÍDO)
-        # ==========================================================
-        
+        # INÍCIO DA CORREÇÃO
         # Define valores padrão. Eles serão sobrepostos pela aba ativa.
+        # A LÓGICA ANTIGA COM st.session_state['lanc_tipo_aba'] FOI REMOVIDA.
+        # ==========================================================
         tipo_lancamento = "Porcentagem"
         qtd_lancamentos = 1
-
-        # ==========================================================
-        # FIM DA CORREÇÃO
-        # ==========================================================
+        
         
         with tab_porcentagem:
             # REMOVIDO: st.session_state['lanc_tipo_aba'] = "Porcentagem"
