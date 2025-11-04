@@ -11,6 +11,15 @@ import numpy as np
 # ==============================
 # 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
 # ==============================
+
+# --- CONFIGURAÇÃO DA PÁGINA (DEVE SER O PRIMEIRO COMANDO st) ---
+st.set_page_config(
+    layout="wide",
+    page_title="Sinapsis - Lançamento de Atividades"
+    # page_icon="favicon.ico" # Opcional: Adicione um ícone na aba do navegador
+)
+# -----------------------------------------------------------
+
 # --- CORES SINAPSIS DEFINITIVAS ---
 COR_PRIMARIA = "#313191" # Azul Principal (Fundo da Sidebar)
 COR_SECUNDARIA = "#19c0d1" # Azul Ciano (Usado na paleta de gráficos e realces)
@@ -666,39 +675,39 @@ def excluir_atividade(atividade_id):
 # 5. Dados fixos
 # ==============================
 DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento",
-              "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira",
-              "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados",
-              "2.012 - Logística de viagens","2.013 - Prestação de contas","2.014 - Compras e Suprimentos",
+                 "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira",
+                 "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados",
+                 "2.012 - Logística de viagens","2.013 - Prestação de contas","2.014 - Compras e Suprimentos",
 "3.001 - Prospecção de oportunidades",
-              "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital",
-              "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto",
-              "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta",
-              "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial",
-              "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto",
-              "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho",
-              "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas",
-              "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos",
-              "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados",
-              "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento",
-              "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho",
-              "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados",
-              "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug",
-              "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades",
-              "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação",
-              "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa",
-              "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes",
-              "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material",
-              "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho",
-              "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo",
-              "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH",
-              "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento",
-              "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna",
-              "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação",
-              "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho",
-              "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações",
-              "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos",
-              "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados",
-              "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
+                 "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital",
+                 "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto",
+                 "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta",
+                 "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial",
+                 "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto",
+                 "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho",
+                 "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas",
+                 "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos",
+                 "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados",
+                 "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento",
+                 "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho",
+                 "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados",
+                 "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug",
+                 "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades",
+                 "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação",
+                 "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa",
+                 "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes",
+                 "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material",
+                 "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho",
+                 "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo",
+                 "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH",
+                 "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento",
+                 "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna",
+                 "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação",
+                 "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho",
+                 "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações",
+                 "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos",
+                 "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados",
+                 "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
 
 PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia",
             "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia",
@@ -1164,14 +1173,14 @@ else:
                     gerentes_remover_list = sorted(hierarquia_df_reloaded['gerente'].unique())
                     # Adiciona um placeholder para evitar erro se a lista estiver vazia
                     if not gerentes_remover_list:
-                                    gerentes_remover_list = ["Nenhum Gerente Configurado"]
+                                        gerentes_remover_list = ["Nenhum Gerente Configurado"]
                                 
                     gerente_remover = st.selectbox("Gerente da Área (Remoção)", gerentes_remover_list, key="gerente_remover_area", disabled=("Nenhum Gerente Configurado" in gerentes_remover_list)) 
                     
                     
                     subordinados_do_gerente = []
                     if gerente_remover != "Nenhum Gerente Configurado":
-                                    subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
+                                        subordinados_do_gerente = hierarquia_df_reloaded[hierarquia_df_reloaded['gerente'] == gerente_remover]['subordinado'].tolist()
                     
                     if not subordinados_do_gerente:
                         subordinados_do_gerente = ["Nenhuma Pessoa da Equipe"]
@@ -1206,20 +1215,20 @@ else:
             st.stop()
         
         if st.session_state["admin"]:
-                        # Admin seleciona qualquer time
-                        gerente_a_analisar = st.selectbox(
-                            "Selecione o Gerente da Área para Análise", 
-                            sorted(gerentes_com_time)
-                        )
+                            # Admin seleciona qualquer time
+                            gerente_a_analisar = st.selectbox(
+                                "Selecione o Gerente da Área para Análise", 
+                                sorted(gerentes_com_time)
+                            )
         else:
-                        # Gerente só vê o próprio time
-                
+                            # Gerente só vê o próprio time
+            
             gerente_a_analisar = usuario_logado
             st.markdown(f"**Gerente da Área em Análise:** **{gerente_a_analisar}**") 
 
         if gerente_a_analisar not in gerentes_com_time:
-                        st.error("Gerente da Área inválido selecionado.")
-                        st.stop()
+                            st.error("Gerente da Área inválido selecionado.")
+                            st.stop()
 
 
         # --- CONTINUAÇÃO DA ANÁLISE DO TIME SELECIONADO/LOGADO ---
@@ -1616,7 +1625,7 @@ else:
                     if l["descricao"] == "--- Selecione ---" or l["projeto"] == "--- Selecione ---":
                         st.error("Todos os lançamentos válidos devem ter uma Descrição e um Projeto selecionados.")
                         st.stop()
-                    
+                
                 # Prepara variáveis de cálculo
                 soma_nova = 0
                 total_geral_horas = total_horas_existentes 
@@ -2217,12 +2226,12 @@ else:
                 colunas_base_necessarias = ['usuario', 'data_str', 'descricao', 'projeto', 'porcentagem']
                 # Verifica a presença de 'data_str' (nome temporário para data)
                 if 'data_str' not in df_import.columns:
-                     # Tenta encontrar a coluna 'data'
-                     if 'data' in df_import.columns:
-                         df_import.rename(columns={'data': 'data_str'}, inplace=True)
-                     else:
-                         raise KeyError(f"A coluna **'Data'** (ou 'data_str') não foi encontrada no arquivo. Verifique se o nome do cabeçalho está correto.")
-                         
+                         # Tenta encontrar a coluna 'data'
+                         if 'data' in df_import.columns:
+                             df_import.rename(columns={'data': 'data_str'}, inplace=True)
+                         else:
+                             raise KeyError(f"A coluna **'Data'** (ou 'data_str') não foi encontrada no arquivo. Verifique se o nome do cabeçalho está correto.")
+                             
                 # Verifica as outras colunas
                 for col_name, col_dest in colunas_mapeamento_origem.items():
                     if col_dest != 'data_str' and col_dest not in df_import.columns:
