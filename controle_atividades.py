@@ -668,7 +668,8 @@ def excluir_atividade(atividade_id):
 DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento",
               "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira",
               "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados",
-              "2.012 - Logística de viagens","2.013 - Prestação de contas","3.001 - Prospecção de oportunidades",
+              "2.012 - Logística de viagens","2.013 - Prestação de contas","2.014 - Compras e Suprimentos",
+"3.001 - Prospecção de oportunidades",
               "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital",
               "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto",
               "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta",
@@ -2346,3 +2347,4 @@ else:
             except Exception as e:
                 # MELHORIA DE VISUAL: Exibir a exceção completa
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
