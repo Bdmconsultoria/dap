@@ -12,7 +12,6 @@ import numpy as np
 # 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
 # ==============================
 
-# DEVE SER O PRIMEIRO COMANDO
 st.set_page_config(
     layout="wide",
     page_title="Sinapsis - Lançamento de Atividades"
@@ -27,7 +26,7 @@ COR_FUNDO_SIDEBAR = COR_PRIMARIA
 
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
-# URL DO LOGO (Versão RAW para funcionar)
+# URL DO LOGO (Versão RAW)
 LOGO_URL = "https://github.com/Bdmconsultoria/dap/raw/main/logo-branco%202.png" 
 
 # ==============================
@@ -44,7 +43,6 @@ try:
     }
 except KeyError:
     DB_PARAMS = {}
-    # Em produção, remova o st.error para não expor info, ou configure o secrets.toml
     
 # ==============================
 # 2. Conexão com PostgreSQL
@@ -90,12 +88,9 @@ def setup_db():
                 );
             """)
             
-            # Verificação da coluna status (Migração)
+            # Coluna status
             try:
-                cursor.execute("""
-                    SELECT 1 FROM information_schema.columns 
-                    WHERE table_name='atividades' AND column_name='status';
-                """)
+                cursor.execute("SELECT 1 FROM information_schema.columns WHERE table_name='atividades' AND column_name='status';")
                 if not cursor.fetchone():
                     cursor.execute("ALTER TABLE atividades ADD COLUMN status VARCHAR(50) DEFAULT 'Pendente';")
                     conn.commit()
@@ -121,7 +116,7 @@ if DB_PARAMS:
     setup_db()
 
 # ==============================
-# 4. CRUD e Consultas
+# 4. CRUD, Consultas e Lógica de Cálculo
 # ==============================
 
 def salvar_usuario(usuario, senha, admin=False):
@@ -168,6 +163,91 @@ def alterar_senha(usuario, nova_senha):
     finally:
         conn.close()
 
+def extrair_hora_bruta(observacao):
+    """Extrai metadado [HORA:X|OBS]"""
+    if observacao is None: return 0.0, ''
+    match = re.search(r'\[HORA:(\d+\.?\d*)\|(.*)\]', observacao, re.DOTALL)
+    if match:
+        try:
+            return float(match.group(1)), match.group(2).strip()
+        except ValueError:
+            pass
+    return 0.0, observacao.strip()
+
+def atualizar_porcentagem_atividade(conn, atividade_id, nova_porcentagem):
+    """Atualiza porcentagem usando uma conexão aberta existente"""
+    with conn.cursor() as cursor:
+        cursor.execute("UPDATE atividades SET porcentagem = %s WHERE id = %s;", (nova_porcentagem, atividade_id))
+
+# --- ALGORITMO DE CORREÇÃO DE ARREDONDAMENTO (99%/101%) ---
+def ajustar_arredondamento_horas(usuario, mes, ano):
+    """
+    Recalcula todas as porcentagens baseadas em horas para garantir soma exata de 100%.
+    Corrige distorções de 99% ou 101% ajustando o maior valor.
+    """
+    conn = get_db_connection()
+    if not conn: return
+
+    try:
+        # 1. Buscar todas atividades ativas do mês
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, observacao, porcentagem 
+                FROM atividades 
+                WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado'
+            """, (usuario, mes, ano))
+            atividades = cursor.fetchall() # [(id, obs, perc), ...]
+
+        if not atividades: return
+
+        # 2. Extrair horas e calcular total
+        lista_dados = []
+        total_horas = 0.0
+        
+        # Verifica se existem atividades baseadas em hora
+        tem_hora = False
+        for aid, obs, perc_atual in atividades:
+            h, _ = extrair_hora_bruta(obs)
+            if h > 0:
+                tem_hora = True
+            lista_dados.append({'id': aid, 'horas': h, 'perc_atual': perc_atual})
+            total_horas += h
+        
+        # Se não houver horas registradas ou total for 0, não faz o recálculo de proporção
+        if not tem_hora or total_horas == 0:
+            return
+
+        # 3. Calcular porcentagens inteiras arredondadas
+        for item in lista_dados:
+            # Calcula % ideal
+            perc_float = (item['horas'] / total_horas) * 100
+            # Arredonda matematicamente
+            item['novo_perc'] = int(round(perc_float))
+        
+        # 4. Verificar soma e corrigir Diferença (99 ou 101)
+        soma_perc = sum(item['novo_perc'] for item in lista_dados)
+        diferenca = 100 - soma_perc
+        
+        if diferenca != 0:
+            # Encontra o item com maior porcentagem para absorver a diferença (menos perceptível)
+            # Se houver empate, pega o primeiro
+            idx_max = max(range(len(lista_dados)), key=lambda i: lista_dados[i]['novo_perc'])
+            lista_dados[idx_max]['novo_perc'] += diferenca
+        
+        # 5. Atualizar no Banco
+        for item in lista_dados:
+            # Só atualiza se mudou para economizar query
+            if item['novo_perc'] != item['perc_atual']:
+                 atualizar_porcentagem_atividade(conn, item['id'], item['novo_perc'])
+        
+        conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        st.error(f"Erro no ajuste de arredondamento: {e}")
+    finally:
+        conn.close()
+
 def calcular_porcentagem_existente(usuario, mes, ano, excluido_id=None):
     conn = get_db_connection()
     if conn is None: return 101
@@ -203,7 +283,10 @@ def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observa
                     WHERE id=%s;
                 """, (data_db, mes, ano, descricao, projeto, porcentagem, observacao, atividade_id))
             conn.commit()
-            return True
+        
+        # Chama o recálculo inteligente após salvar
+        ajustar_arredondamento_horas(usuario, mes, ano)
+        return True
     except Exception as e:
         st.error(f"Erro salvar: {e}")
         return False
@@ -215,37 +298,18 @@ def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nov
     if conn is None: return False
     try:
         with conn.cursor() as cursor:
-            # Busca dados antigos para verificar horas
-            cursor.execute("SELECT usuario, mes, ano, observacao FROM atividades WHERE id = %s;", (atividade_id,))
+            cursor.execute("SELECT usuario, mes, ano FROM atividades WHERE id = %s;", (atividade_id,))
             dados = cursor.fetchone()
             if not dados: return False
-            
-            usuario, mes, ano, observacao_antiga = dados
-            hora_antiga, _ = extrair_hora_bruta(observacao_antiga)
-            hora_nova, _ = extrair_hora_bruta(nova_observacao)
+            usuario, mes, ano = dados
 
-            # Update principal
             cursor.execute("""
                 UPDATE atividades SET descricao = %s, projeto = %s, porcentagem = %s, observacao = %s WHERE id = %s;
             """, (nova_descricao, novo_projeto, nova_porcentagem, nova_observacao, atividade_id))
             conn.commit()
-
-            # Recalculo de horas se necessário (Modo Horas)
-            if hora_antiga > 0 or hora_nova > 0:
-                cursor.execute("SELECT id, observacao FROM atividades WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';", (usuario, mes, ano))
-                atividades = cursor.fetchall()
-                atividades_horas = []
-                total_horas = 0
-                for a_id, obs in atividades:
-                    h, _ = extrair_hora_bruta(obs)
-                    if h > 0:
-                        atividades_horas.append((a_id, h))
-                        total_horas += h
-                
-                if total_horas > 0:
-                    for a_id, h in atividades_horas:
-                        nova_perc = int(round((h / total_horas) * 100))
-                        atualizar_porcentagem_atividade(a_id, nova_perc)
+        
+        # Recalculo inteligente
+        ajustar_arredondamento_horas(usuario, mes, ano)
         return True
     except Exception as e:
         st.error(f"Erro atualizar completa: {e}")
@@ -254,17 +318,34 @@ def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nov
         conn.close()
 
 def apagar_atividade(atividade_id):
+    # Busca dados antes de apagar para saber qual mês recalcular
+    conn = get_db_connection()
+    dados = None
+    if conn:
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT usuario, mes, ano FROM atividades WHERE id = %s;", (atividade_id,))
+                dados = cursor.fetchone()
+        finally:
+            conn.close()
+
+    # Apaga
     conn = get_db_connection()
     if conn is None: return False
     try:
         with conn.cursor() as cursor:
             cursor.execute("DELETE FROM atividades WHERE id = %s;", (atividade_id,))
             conn.commit()
-            return True
     except Exception:
         return False
     finally:
         conn.close()
+    
+    # Recalcula se encontrou os dados
+    if dados:
+        ajustar_arredondamento_horas(dados[0], dados[1], dados[2])
+    
+    return True
 
 def atualizar_status_atividade(atividade_id, novo_status):
     conn = get_db_connection()
@@ -279,7 +360,6 @@ def atualizar_status_atividade(atividade_id, novo_status):
     finally:
         conn.close()
 
-# --- NOVA FUNÇÃO PARA APROVAÇÃO EM MASSA ---
 def atualizar_status_em_massa(lista_ids, novo_status):
     conn = get_db_connection()
     if conn is None: return False
@@ -343,11 +423,8 @@ def carregar_dados():
     if conn is None: return pd.DataFrame(), pd.DataFrame()
     try:
         usuarios_df = pd.read_sql("SELECT usuario, admin FROM usuarios;", conn)
-        
-        query_full = "SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status FROM atividades ORDER BY ano DESC, mes DESC, data DESC;"
-        # Fallback se a coluna status não existir (para evitar crash em migração)
         try:
-            atividades_df = pd.read_sql(query_full, conn)
+            atividades_df = pd.read_sql("SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status FROM atividades ORDER BY ano DESC, mes DESC, data DESC;", conn)
         except Exception:
              atividades_df = pd.read_sql("SELECT id, usuario, data, mes, ano, descricao, projeto, porcentagem, observacao FROM atividades ORDER BY ano DESC, mes DESC, data DESC;", conn)
              atividades_df['status'] = 'Pendente'
@@ -381,6 +458,12 @@ def bulk_insert_atividades(df_to_insert):
         with conn.cursor() as cursor:
             psycopg2.extras.execute_batch(cursor, "INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", data_list)
             conn.commit()
+            
+            # Tenta ajustar arredondamento para cada usuário/mês importado (pode ser lento se forem muitos)
+            users_meses = df_to_insert[['usuario', 'mes', 'ano']].drop_duplicates()
+            for _, row in users_meses.iterrows():
+                ajustar_arredondamento_horas(row['usuario'], row['mes'], row['ano'])
+                
             return len(data_list), "OK"
     except Exception as e:
         conn.rollback()
@@ -416,30 +499,6 @@ def limpar_nomes_usuarios_db():
     finally:
         conn.close()
 
-# --- AUXILIARES ---
-def extrair_hora_bruta(observacao):
-    if observacao is None: return 0.0, ''
-    match = re.search(r'\[HORA:(\d+\.?\d*)\|(.*)\]', observacao, re.DOTALL)
-    if match:
-        try:
-            return float(match.group(1)), match.group(2).strip()
-        except ValueError:
-            pass
-    return 0.0, observacao.strip()
-
-def atualizar_porcentagem_atividade(atividade_id, nova_porcentagem):
-    conn = get_db_connection()
-    if conn is None: return False
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("UPDATE atividades SET porcentagem = %s WHERE id = %s;", (nova_porcentagem, atividade_id))
-            conn.commit()
-            return True
-    except Exception:
-        return False
-    finally:
-        conn.close()
-
 def carregar_atividades_usuario(usuario, mes, ano):
     conn = get_db_connection()
     if conn is None: return []
@@ -457,46 +516,10 @@ def is_user_a_manager(usuario, hierarquia_df):
 
 # --- CALLBACK DE DELETE ---
 def handle_delete(atividade_id):
-    conn = get_db_connection()
-    if not conn: return
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT usuario, mes, ano, observacao FROM atividades WHERE id = %s;", (atividade_id,))
-            dados = cursor.fetchone()
-    finally:
-        conn.close()
-
-    if not dados: return
-    usuario, mes, ano, observacao = dados
-
-    if not apagar_atividade(atividade_id): return
-
-    hora, _ = extrair_hora_bruta(observacao)
-    if hora > 0:
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT id, observacao FROM atividades WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';", (usuario, mes, ano))
-                atividades_restantes = cursor.fetchall()
-            
-            atividades_horas = []
-            total_horas = 0
-            for a_id, obs in atividades_restantes:
-                h, _ = extrair_hora_bruta(obs)
-                if h > 0:
-                    atividades_horas.append((a_id, h))
-                    total_horas += h
-            
-            if total_horas > 0:
-                for a_id, h in atividades_horas:
-                    nova_porcentagem = int(round((h / total_horas) * 100))
-                    atualizar_porcentagem_atividade(a_id, nova_porcentagem)
-        finally:
-            conn.close()
-    
-    carregar_dados.clear()
-    st.toast("Atividade apagada!", icon="🗑️")
-    st.rerun()
+    if apagar_atividade(atividade_id):
+        carregar_dados.clear()
+        st.toast("Atividade apagada e percentuais recalculados!", icon="🗑️")
+        st.rerun()
 
 # --- DADOS FIXOS ---
 DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento", "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira", "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados", "2.012 - Logística de viagens","2.013 - Prestação de contas","2.014 - Compras e Suprimentos", "3.001 - Prospecção de oportunidades", "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital", "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto", "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta", "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial", "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto", "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho", "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas", "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos", "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados", "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento", "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho", "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados", "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug", "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades", "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação", "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa", "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes", "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material", "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho", "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo", "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH", "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento", "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna", "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação", "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho", "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações", "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos", "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados", "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
@@ -775,21 +798,21 @@ else:
                     st.error("Preencha os dados.")
                     st.stop()
                 
+                # Cálculo Preliminar
                 total_novo_val = sum(n['val'] for n in validos)
-                total_h_final = horas_existentes + (total_novo_val if tipo == "Horas" else 0)
                 
                 if tipo == "Horas":
+                    # No modo horas, a proporção é calculada APÓS o salvamento pela função 'ajustar_arredondamento_horas'
+                    # Apenas salvamos valores temporários ou 'chutes', a função corrige depois.
+                    total_h_final = horas_existentes + total_novo_val
                     if total_h_final == 0: st.stop()
-                    # Recalcula existentes
-                    for a in ativas:
-                        h, _ = extrair_hora_bruta(a.get('observacao',''))
-                        if h > 0:
-                            atualizar_porcentagem_atividade(a['id'], int(round((h/total_h_final)*100)))
-                    # Salva novos
+                    
                     for n in validos:
-                        perc = int(round((n['val']/total_h_final)*100))
+                        # Estima a %, mas o ajuste fino será feito depois
+                        perc_est = int(round((n['val']/total_h_final)*100))
                         obs = f"[HORA:{n['val']}|{n['obs']}]"
-                        salvar_atividade(st.session_state["usuario"], mes_num, ano_sel, n['desc'], n['proj'], perc, obs)
+                        salvar_atividade(st.session_state["usuario"], mes_num, ano_sel, n['desc'], n['proj'], perc_est, obs)
+                        
                 else:
                     if total_existente + total_novo_val > 100:
                         st.error("Ultrapassa 100%.")
@@ -798,10 +821,10 @@ else:
                         salvar_atividade(st.session_state["usuario"], mes_num, ano_sel, n['desc'], n['proj'], int(n['val']), n['obs'])
                 
                 carregar_dados.clear()
-                st.success("Salvo!")
+                st.success("Salvo e recalculado!")
                 st.rerun()
 
-        # --- BARRA DE PROGRESSO (SUBSTITUI PIE CHART) ---
+        # --- BARRA DE PROGRESSO ---
         st.subheader("📊 Status do Mês")
         percentual_decimal = min(total_existente / 100.0, 1.0)
         st.progress(percentual_decimal)
@@ -825,7 +848,6 @@ else:
         ativas = [a for a in atividades if a['status'] != 'Rejeitado']
         total = sum(a['porcentagem'] for a in ativas)
         
-        # Mantém gráfico aqui
         col_met, col_graph = st.columns([1, 2])
         col_met.metric("Total Alocado", f"{total}%", f"{100-total}% restante")
         
@@ -859,7 +881,6 @@ else:
         # --- LAYOUT TABELA/GRID PARA EDIÇÃO ---
         st.subheader("Edição")
         
-        # Cabeçalho (Fora do loop)
         cols_head = st.columns([0.5, 3, 3, 1.5, 2.5, 1.5])
         cols_head[0].markdown("**ID**")
         cols_head[1].markdown("**Descrição**")
@@ -873,7 +894,6 @@ else:
             h_bruta, obs_clean = extrair_hora_bruta(a.get('observacao', ''))
             disabled = a['status'] != 'Pendente'
             
-            # CORREÇÃO: Form envolve a criação das colunas
             with st.form(key=f"f_row_{a['id']}"):
                 c_id, c_desc, c_proj, c_perc, c_obs, c_act = st.columns([0.5, 3, 3, 1.5, 2.5, 1.5])
                 
@@ -914,7 +934,7 @@ else:
             st.markdown("<hr style='margin: 5px 0; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
     # ==============================
-    # ABA: Importar Dados (Todos os Usuários)
+    # ABA: Importar Dados (COM VALIDAÇÃO E RECÁLCULO)
     # ==============================
     elif aba == "Importar Dados":
         st.header("⬆️ Importação de Dados")
@@ -932,28 +952,74 @@ else:
                 else:
                     df = pd.read_excel(up)
                 
-                # Normalização Colunas
-                map_cols = {'Nome': 'usuario', 'Data': 'data', 'Descrição': 'descricao', 'Projeto': 'projeto', 'Porcentagem': 'porcentagem', 'Observação (Opcional)': 'observacao'}
-                df.rename(columns=map_cols, inplace=True)
-                df.columns = df.columns.str.lower() 
+                # 1. Normalização
+                map_cols = {
+                    'Nome': 'usuario', 
+                    'Data': 'data', 
+                    'Descrição': 'descricao', 
+                    'Projeto': 'projeto', 
+                    'Porcentagem': 'porcentagem', 
+                    'Observação (Opcional)': 'observacao'
+                }
+                df.columns = df.columns.str.strip()
+                cols_existentes = {c: c for c in df.columns}
+                rename_dict = {}
+                for k, v in map_cols.items():
+                    for c in cols_existentes:
+                        if k.lower() == c.lower():
+                            rename_dict[c] = v
+                df.rename(columns=rename_dict, inplace=True)
                 
-                # Trava de Segurança Usuário
+                # Validação colunas
+                colunas_obrigatorias = ['usuario', 'data', 'descricao', 'projeto', 'porcentagem']
+                missing = [c for c in colunas_obrigatorias if c not in df.columns]
+                if missing:
+                    if not st.session_state["admin"] and 'usuario' in missing: pass 
+                    else:
+                        st.error(f"Colunas faltando: {missing}")
+                        st.stop()
+
+                # 2. Segurança
                 if not st.session_state["admin"]:
                     df['usuario'] = st.session_state["usuario"]
                 
-                # Tratamento
+                # 3. Tipos
                 df['data'] = pd.to_datetime(df['data'], errors='coerce', dayfirst=True)
                 df.dropna(subset=['data', 'usuario', 'porcentagem'], inplace=True)
                 df['mes'] = df['data'].dt.month
                 df['ano'] = df['data'].dt.year
-                df['porcentagem'] = (df['porcentagem'] * 100 if df['porcentagem'].max() <= 1 else df['porcentagem']).astype(int)
-                if 'observacao' not in df.columns: df['observacao'] = ''
-                df['status'] = 'Pendente'
                 
+                if df['porcentagem'].max() <= 1.0: df['porcentagem'] = (df['porcentagem'] * 100)
+                df['porcentagem'] = df['porcentagem'].astype(int)
+
+                if 'observacao' not in df.columns: df['observacao'] = ''
+                df['observacao'] = df['observacao'].fillna('').astype(str)
+                df['status'] = 'Pendente'
+                df['descricao'] = df['descricao'].astype(str).str.strip()
+                df['projeto'] = df['projeto'].astype(str).str.strip()
+
+                # 4. Validação Conteúdo
+                st.markdown("### 🔍 Validação")
+                erros_validacao = False
+                desc_inv = df[~df['descricao'].isin(DESCRICOES)]
+                if not desc_inv.empty:
+                    st.error("❌ Descrições inválidas")
+                    st.dataframe(desc_inv['descricao'].unique())
+                    erros_validacao = True
+
+                proj_inv = df[~df['projeto'].isin(PROJETOS)]
+                if not proj_inv.empty:
+                    st.error("❌ Projetos inválidos")
+                    st.dataframe(proj_inv['projeto'].unique())
+                    erros_validacao = True
+                
+                if erros_validacao: st.stop()
+                
+                st.success("✅ Validado!")
                 st.dataframe(df.head())
                 
-                if st.button("Importar"):
-                    # Validação 100%
+                if st.button("Confirmar Importação", type="primary"):
+                    # Validação Soma
                     df_exist = atividades_df[atividades_df['status'] != 'Rejeitado']
                     tot_ex = df_exist.groupby(['usuario','mes','ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem':'existente'})
                     tot_new = df.groupby(['usuario','mes','ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem':'novo'})
@@ -961,18 +1027,20 @@ else:
                     
                     violacoes = merged[merged['existente'] + merged['novo'] > 100]
                     if not violacoes.empty:
-                        st.error("Importação cancelada: Ultrapassa 100% para alguns meses.")
+                        st.error("❌ Soma > 100% detectada.")
                         st.dataframe(violacoes)
                         st.stop()
                         
                     qtd, msg = bulk_insert_atividades(df)
                     if qtd > 0: 
-                        st.success(f"Importado {qtd} registros!")
+                        st.balloons()
+                        st.success(f"🎉 Importado {qtd} registros.")
                         carregar_dados.clear()
                     else: 
                         st.error(msg)
+            
             except Exception as e:
-                st.error(f"Erro ao ler arquivo: {e}")
+                st.error(f"Erro: {e}")
 
     # ==============================
     # ABA: Consolidado (Admin)
@@ -997,4 +1065,3 @@ else:
             st.plotly_chart(fig, use_container_width=True)
             
             st.dataframe(df_f.drop(columns=['m_a']), use_container_width=True, hide_index=True)
-
