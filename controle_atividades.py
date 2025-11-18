@@ -181,62 +181,44 @@ def atualizar_porcentagem_atividade(conn, atividade_id, nova_porcentagem):
 
 # --- ALGORITMO DE CORREÇÃO DE ARREDONDAMENTO (99%/101%) ---
 def ajustar_arredondamento_horas(usuario, mes, ano):
-    """
-    Recalcula todas as porcentagens baseadas em horas para garantir soma exata de 100%.
-    Corrige distorções de 99% ou 101% ajustando o maior valor.
-    """
     conn = get_db_connection()
     if not conn: return
 
     try:
-        # 1. Buscar todas atividades ativas do mês
         with conn.cursor() as cursor:
             cursor.execute("""
                 SELECT id, observacao, porcentagem 
                 FROM atividades 
                 WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado'
             """, (usuario, mes, ano))
-            atividades = cursor.fetchall() # [(id, obs, perc), ...]
+            atividades = cursor.fetchall()
 
         if not atividades: return
 
-        # 2. Extrair horas e calcular total
         lista_dados = []
         total_horas = 0.0
-        
-        # Verifica se existem atividades baseadas em hora
         tem_hora = False
+        
         for aid, obs, perc_atual in atividades:
             h, _ = extrair_hora_bruta(obs)
-            if h > 0:
-                tem_hora = True
+            if h > 0: tem_hora = True
             lista_dados.append({'id': aid, 'horas': h, 'perc_atual': perc_atual})
             total_horas += h
         
-        # Se não houver horas registradas ou total for 0, não faz o recálculo de proporção
-        if not tem_hora or total_horas == 0:
-            return
+        if not tem_hora or total_horas == 0: return
 
-        # 3. Calcular porcentagens inteiras arredondadas
         for item in lista_dados:
-            # Calcula % ideal
             perc_float = (item['horas'] / total_horas) * 100
-            # Arredonda matematicamente
             item['novo_perc'] = int(round(perc_float))
         
-        # 4. Verificar soma e corrigir Diferença (99 ou 101)
         soma_perc = sum(item['novo_perc'] for item in lista_dados)
         diferenca = 100 - soma_perc
         
         if diferenca != 0:
-            # Encontra o item com maior porcentagem para absorver a diferença (menos perceptível)
-            # Se houver empate, pega o primeiro
             idx_max = max(range(len(lista_dados)), key=lambda i: lista_dados[i]['novo_perc'])
             lista_dados[idx_max]['novo_perc'] += diferenca
         
-        # 5. Atualizar no Banco
         for item in lista_dados:
-            # Só atualiza se mudou para economizar query
             if item['novo_perc'] != item['perc_atual']:
                  atualizar_porcentagem_atividade(conn, item['id'], item['novo_perc'])
         
@@ -284,7 +266,6 @@ def salvar_atividade(usuario, mes, ano, descricao, projeto, porcentagem, observa
                 """, (data_db, mes, ano, descricao, projeto, porcentagem, observacao, atividade_id))
             conn.commit()
         
-        # Chama o recálculo inteligente após salvar
         ajustar_arredondamento_horas(usuario, mes, ano)
         return True
     except Exception as e:
@@ -308,7 +289,6 @@ def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nov
             """, (nova_descricao, novo_projeto, nova_porcentagem, nova_observacao, atividade_id))
             conn.commit()
         
-        # Recalculo inteligente
         ajustar_arredondamento_horas(usuario, mes, ano)
         return True
     except Exception as e:
@@ -318,7 +298,6 @@ def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nov
         conn.close()
 
 def apagar_atividade(atividade_id):
-    # Busca dados antes de apagar para saber qual mês recalcular
     conn = get_db_connection()
     dados = None
     if conn:
@@ -329,7 +308,6 @@ def apagar_atividade(atividade_id):
         finally:
             conn.close()
 
-    # Apaga
     conn = get_db_connection()
     if conn is None: return False
     try:
@@ -341,7 +319,6 @@ def apagar_atividade(atividade_id):
     finally:
         conn.close()
     
-    # Recalcula se encontrou os dados
     if dados:
         ajustar_arredondamento_horas(dados[0], dados[1], dados[2])
     
@@ -459,7 +436,6 @@ def bulk_insert_atividades(df_to_insert):
             psycopg2.extras.execute_batch(cursor, "INSERT INTO atividades (usuario, data, mes, ano, descricao, projeto, porcentagem, observacao, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", data_list)
             conn.commit()
             
-            # Tenta ajustar arredondamento para cada usuário/mês importado (pode ser lento se forem muitos)
             users_meses = df_to_insert[['usuario', 'mes', 'ano']].drop_duplicates()
             for _, row in users_meses.iterrows():
                 ajustar_arredondamento_horas(row['usuario'], row['mes'], row['ano'])
@@ -648,8 +624,8 @@ else:
             st.subheader("Configurar Hierarquia (Admin)")
             with st.form("hierarquia"):
                 c1, c2 = st.columns(2)
-                g = c1.selectbox("Gerente", sorted(usuarios_list))
-                s = c2.selectbox("Subordinado", ["---"] + sorted([u for u in usuarios_list if u != g]))
+                g = c1.selectbox("Gerente da Área", sorted(usuarios_list))
+                s = c2.selectbox("Pessoa da Área", ["---"] + sorted([u for u in usuarios_list if u != g]))
                 if st.form_submit_button("Associar"):
                     if s != "---":
                         salvar_hierarquia(g, s)
@@ -658,11 +634,14 @@ else:
                         st.rerun()
             
             if not hierarquia_df.empty:
-                st.dataframe(hierarquia_df, use_container_width=True, hide_index=True)
+                # Renomeia colunas APENAS para exibição visual
+                df_display = hierarquia_df.rename(columns={'gerente': 'Gerente da Área', 'subordinado': 'Pessoa da Área'})
+                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                
                 with st.form("del_hierarquia"):
-                     g_rem = st.selectbox("Gerente (Remover)", sorted(hierarquia_df['gerente'].unique()))
+                     g_rem = st.selectbox("Gerente da Área (Remover)", sorted(hierarquia_df['gerente'].unique()))
                      subs = hierarquia_df[hierarquia_df['gerente'] == g_rem]['subordinado'].tolist()
-                     s_rem = st.selectbox("Subordinado (Remover)", sorted(subs)) if subs else None
+                     s_rem = st.selectbox("Pessoa da Área (Remover)", sorted(subs)) if subs else None
                      if st.form_submit_button("Remover"):
                          apagar_hierarquia(g_rem, s_rem)
                          carregar_hierarquia.clear()
@@ -674,11 +653,11 @@ else:
         gerentes_validos = hierarquia_df['gerente'].unique()
         
         if st.session_state["admin"]:
-            gerente_analise = st.selectbox("Selecione o Gerente", sorted(gerentes_validos))
+            gerente_analise = st.selectbox("Selecione o Gerente da Área", sorted(gerentes_validos))
         elif st.session_state["usuario"] in gerentes_validos:
             gerente_analise = st.session_state["usuario"]
         else:
-            st.warning("Você não é gerente.")
+            st.warning("Você não é Gerente da Área.")
             st.stop()
             
         time = hierarquia_df[hierarquia_df['gerente'] == gerente_analise]['subordinado'].tolist()
@@ -711,7 +690,7 @@ else:
         # Tabela de Aprovação com Checkbox
         c_f1, c_f2 = st.columns(2)
         status_f = c_f1.selectbox("Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"])
-        user_f = c_f2.selectbox("Membro", ["Todos"] + sorted(time))
+        user_f = c_f2.selectbox("Pessoa da Área", ["Todos"] + sorted(time))
         
         df_view = df_time.copy()
         if status_f != "Todos": df_view = df_view[df_view['status'] == status_f]
@@ -798,17 +777,13 @@ else:
                     st.error("Preencha os dados.")
                     st.stop()
                 
-                # Cálculo Preliminar
                 total_novo_val = sum(n['val'] for n in validos)
                 
                 if tipo == "Horas":
-                    # No modo horas, a proporção é calculada APÓS o salvamento pela função 'ajustar_arredondamento_horas'
-                    # Apenas salvamos valores temporários ou 'chutes', a função corrige depois.
                     total_h_final = horas_existentes + total_novo_val
                     if total_h_final == 0: st.stop()
                     
                     for n in validos:
-                        # Estima a %, mas o ajuste fino será feito depois
                         perc_est = int(round((n['val']/total_h_final)*100))
                         obs = f"[HORA:{n['val']}|{n['obs']}]"
                         salvar_atividade(st.session_state["usuario"], mes_num, ano_sel, n['desc'], n['proj'], perc_est, obs)
@@ -824,7 +799,6 @@ else:
                 st.success("Salvo e recalculado!")
                 st.rerun()
 
-        # --- BARRA DE PROGRESSO ---
         st.subheader("📊 Status do Mês")
         percentual_decimal = min(total_existente / 100.0, 1.0)
         st.progress(percentual_decimal)
@@ -835,7 +809,7 @@ else:
         c_k3.metric("Horas Brutas", f"{horas_existentes:.1f} h")
 
     # ==============================
-    # ABA: Minhas Atividades (Tabela Grid CORRIGIDA)
+    # ABA: Minhas Atividades
     # ==============================
     elif aba == "Minhas Atividades":
         st.header("📋 Minhas Atividades")
@@ -859,7 +833,6 @@ else:
 
         st.markdown("---")
         
-        # Opções Extras
         c_copy, c_exp = st.columns(2)
         if c_copy.button("Copiar Mês Anterior", use_container_width=True):
             m_ant = mes_num - 1 if mes_num > 1 else 12
@@ -878,7 +851,6 @@ else:
             df_ex.to_excel(buffer, index=False)
             c_exp.download_button("Exportar Excel", buffer, "atividades.xlsx", use_container_width=True)
 
-        # --- LAYOUT TABELA/GRID PARA EDIÇÃO ---
         st.subheader("Edição")
         
         cols_head = st.columns([0.5, 3, 3, 1.5, 2.5, 1.5])
@@ -934,7 +906,7 @@ else:
             st.markdown("<hr style='margin: 5px 0; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
     # ==============================
-    # ABA: Importar Dados (COM VALIDAÇÃO E RECÁLCULO)
+    # ABA: Importar Dados
     # ==============================
     elif aba == "Importar Dados":
         st.header("⬆️ Importação de Dados")
@@ -952,15 +924,7 @@ else:
                 else:
                     df = pd.read_excel(up)
                 
-                # 1. Normalização
-                map_cols = {
-                    'Nome': 'usuario', 
-                    'Data': 'data', 
-                    'Descrição': 'descricao', 
-                    'Projeto': 'projeto', 
-                    'Porcentagem': 'porcentagem', 
-                    'Observação (Opcional)': 'observacao'
-                }
+                map_cols = {'Nome': 'usuario', 'Data': 'data', 'Descrição': 'descricao', 'Projeto': 'projeto', 'Porcentagem': 'porcentagem', 'Observação (Opcional)': 'observacao'}
                 df.columns = df.columns.str.strip()
                 cols_existentes = {c: c for c in df.columns}
                 rename_dict = {}
@@ -970,7 +934,6 @@ else:
                             rename_dict[c] = v
                 df.rename(columns=rename_dict, inplace=True)
                 
-                # Validação colunas
                 colunas_obrigatorias = ['usuario', 'data', 'descricao', 'projeto', 'porcentagem']
                 missing = [c for c in colunas_obrigatorias if c not in df.columns]
                 if missing:
@@ -979,11 +942,9 @@ else:
                         st.error(f"Colunas faltando: {missing}")
                         st.stop()
 
-                # 2. Segurança
                 if not st.session_state["admin"]:
                     df['usuario'] = st.session_state["usuario"]
                 
-                # 3. Tipos
                 df['data'] = pd.to_datetime(df['data'], errors='coerce', dayfirst=True)
                 df.dropna(subset=['data', 'usuario', 'porcentagem'], inplace=True)
                 df['mes'] = df['data'].dt.month
@@ -998,7 +959,6 @@ else:
                 df['descricao'] = df['descricao'].astype(str).str.strip()
                 df['projeto'] = df['projeto'].astype(str).str.strip()
 
-                # 4. Validação Conteúdo
                 st.markdown("### 🔍 Validação")
                 erros_validacao = False
                 desc_inv = df[~df['descricao'].isin(DESCRICOES)]
@@ -1019,7 +979,6 @@ else:
                 st.dataframe(df.head())
                 
                 if st.button("Confirmar Importação", type="primary"):
-                    # Validação Soma
                     df_exist = atividades_df[atividades_df['status'] != 'Rejeitado']
                     tot_ex = df_exist.groupby(['usuario','mes','ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem':'existente'})
                     tot_new = df.groupby(['usuario','mes','ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem':'novo'})
