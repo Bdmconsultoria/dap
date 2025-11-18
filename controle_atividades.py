@@ -783,7 +783,7 @@ else:
         qtd = st.number_input("Quantidade", 1, 20, 1)
         
         # --- NOVO BLOCO: GUIA DE DEPARTAMENTO/FAMÍLIA (CORREÇÃO DE RENDERING) ---
-        st.subheader("📚 Guia de Classificação (Família da Atividade)")
+        st.subheader("📚 Guia de descrição da Atividade do Departamento")
         
         # Divide a lista em 3 colunas (1-3, 4-6, 7-10)
         grupos = [
@@ -1086,3 +1086,4 @@ else:
             st.plotly_chart(fig, use_container_width=True)
             
             st.dataframe(df_f.drop(columns=['m_a']), use_container_width=True, hide_index=True)
+
