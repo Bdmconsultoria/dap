@@ -33,7 +33,7 @@ COR_FUNDO_SIDEBAR = COR_PRIMARIA # Fundo da lateral na cor principal
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
 # URL DO LOGO CORRIGIDA PARA O FORMATO RAW DO GITHUB
-LOGO_URL = "https://raw.githubusercontent.com/Bdmconsultoria/dap/blob/main/logo_sinapsis.png" 
+LOGO_URL = "https://github.com/Bdmconsultoria/dap/blob/main/logo%20sinasis.jpg" 
 
 # ==============================
 # 1. Credenciais PostgreSQL
@@ -2356,6 +2356,7 @@ else:
             except Exception as e:
                 # MELHORIA DE VISUAL: Exibir a exceção completa
                 st.error(f"❌ Erro ao processar ou ler o arquivo: {e}")
+
 
 
 
