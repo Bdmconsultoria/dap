@@ -507,6 +507,21 @@ MESES = {1: "01 - Janeiro", 2: "02 - Fevereiro", 3: "03 - Março", 4: "04 - Abri
 MESES_SELECT = ["--- Selecione ---"] + list(MESES.values())
 ANOS = list(range(datetime.today().year - 2, datetime.today().year + 3))
 
+# --- INFORMAÇÕES FIXAS DA FAMÍLIA (DEPARTAMENTOS) ---
+DEPARTAMENTOS_INFO = [
+    "1. Diretoria & Conselho (Apenas Diretoria)",
+    "2. Administração",
+    "3. Comercial",
+    "4. Engenharia",
+    "5. Desenvolvimento",
+    "6. QA-Testes",
+    "7. Suporte/Treinamento",
+    "9. Gente e Cultura",
+    "10. Operação"
+]
+# ----------------------------------------------------
+
+
 # ==============================
 # 6. Sessão e Login
 # ==============================
@@ -582,7 +597,6 @@ else:
 
     is_manager = is_user_a_manager(st.session_state["usuario"], hierarquia_df)
     
-    # LOGICA DE MENU (IMPORTAR DADOS PARA TODOS)
     abas = ["Lançar Atividade", "Minhas Atividades", "Importar Dados"]
     if st.session_state["admin"] or is_manager: abas.append("Gerenciar Time")
     if st.session_state["admin"]: abas += ["Gerenciar Usuários", "Consolidado"]
@@ -624,6 +638,7 @@ else:
             st.subheader("Configurar Hierarquia (Admin)")
             with st.form("hierarquia"):
                 c1, c2 = st.columns(2)
+                # Termos ajustados
                 g = c1.selectbox("Gerente da Área", sorted(usuarios_list))
                 s = c2.selectbox("Pessoa da Área", ["---"] + sorted([u for u in usuarios_list if u != g]))
                 if st.form_submit_button("Associar"):
@@ -634,11 +649,12 @@ else:
                         st.rerun()
             
             if not hierarquia_df.empty:
-                # Renomeia colunas APENAS para exibição visual
+                # Termos ajustados para exibição
                 df_display = hierarquia_df.rename(columns={'gerente': 'Gerente da Área', 'subordinado': 'Pessoa da Área'})
                 st.dataframe(df_display, use_container_width=True, hide_index=True)
                 
                 with st.form("del_hierarquia"):
+                     # Termos ajustados
                      g_rem = st.selectbox("Gerente da Área (Remover)", sorted(hierarquia_df['gerente'].unique()))
                      subs = hierarquia_df[hierarquia_df['gerente'] == g_rem]['subordinado'].tolist()
                      s_rem = st.selectbox("Pessoa da Área (Remover)", sorted(subs)) if subs else None
@@ -653,10 +669,12 @@ else:
         gerentes_validos = hierarquia_df['gerente'].unique()
         
         if st.session_state["admin"]:
+            # Termos ajustados
             gerente_analise = st.selectbox("Selecione o Gerente da Área", sorted(gerentes_validos))
         elif st.session_state["usuario"] in gerentes_validos:
             gerente_analise = st.session_state["usuario"]
         else:
+            # Termos ajustados
             st.warning("Você não é Gerente da Área.")
             st.stop()
             
@@ -690,6 +708,7 @@ else:
         # Tabela de Aprovação com Checkbox
         c_f1, c_f2 = st.columns(2)
         status_f = c_f1.selectbox("Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"])
+        # Termos ajustados
         user_f = c_f2.selectbox("Pessoa da Área", ["Todos"] + sorted(time))
         
         df_view = df_time.copy()
@@ -731,7 +750,7 @@ else:
                 st.rerun()
 
     # ==============================
-    # ABA: Lançar Atividade (Barra de Progresso)
+    # ABA: Lançar Atividade (Barra de Progresso + Guia)
     # ==============================
     elif aba == "Lançar Atividade":
         st.header("📝 Lançar Atividade")
@@ -751,7 +770,28 @@ else:
         tipo = st.radio("Tipo", ["Porcentagem", "Horas"], horizontal=True)
         qtd = st.number_input("Quantidade", 1, 20, 1)
         
-        st.markdown("---")
+        # --- NOVO BLOCO: GUIA DE DEPARTAMENTO/FAMÍLIA ---
+        st.subheader("📚 Guia de Classificação (Família da Atividade)")
+        
+        # Divide a lista em 3 colunas para manter a horizontalidade
+        grupos = [
+            DEPARTAMENTOS_INFO[0:3], 
+            DEPARTAMENTOS_INFO[3:6], 
+            DEPARTAMENTOS_INFO[6:]
+        ]
+        
+        col_d1, col_d2, col_d3 = st.columns(3)
+        
+        with col_d1:
+            st.markdown('\n'.join(grupos[0]))
+        with col_d2:
+            st.markdown('\n'.join(grupos[1]))
+        with col_d3:
+            st.markdown('\n'.join(grupos[2]))
+            
+        st.markdown("<hr style='margin-top: 5px; margin-bottom: 5px;'>", unsafe_allow_html=True)
+        # ----------------------------------------------------
+
         
         with st.form("lancamento"):
             cols = st.columns([0.5, 3, 3, 1.5, 3])
