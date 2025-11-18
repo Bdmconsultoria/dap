@@ -12,6 +12,7 @@ import numpy as np
 # 0. CONFIGURAÇÃO DE ESTILO E TEMA (SINAPSIS)
 # ==============================
 
+# DEVE SER O PRIMEIRO COMANDO
 st.set_page_config(
     layout="wide",
     page_title="Sinapsis - Lançamento de Atividades"
@@ -26,7 +27,7 @@ COR_FUNDO_SIDEBAR = COR_PRIMARIA
 
 SINAPSIS_PALETTE = [COR_SECUNDARIA, COR_PRIMARIA, COR_CINZA, "#888888", "#C0C0C0"]
 
-# URL DO LOGO (Versão RAW)
+# URL DO LOGO (Versão RAW para funcionar)
 LOGO_URL = "https://github.com/Bdmconsultoria/dap/raw/main/logo-branco%202.png" 
 
 # ==============================
@@ -43,7 +44,7 @@ try:
     }
 except KeyError:
     DB_PARAMS = {}
-    st.error("Configuração 'st.secrets' não encontrada.")
+    # Em produção, remova o st.error para não expor info, ou configure o secrets.toml
     
 # ==============================
 # 2. Conexão com PostgreSQL
@@ -89,7 +90,7 @@ def setup_db():
                 );
             """)
             
-            # Verificação da coluna status
+            # Verificação da coluna status (Migração)
             try:
                 cursor.execute("""
                     SELECT 1 FROM information_schema.columns 
@@ -229,7 +230,7 @@ def atualizar_atividade_completa(atividade_id, nova_descricao, novo_projeto, nov
             """, (nova_descricao, novo_projeto, nova_porcentagem, nova_observacao, atividade_id))
             conn.commit()
 
-            # Recalculo de horas se necessário
+            # Recalculo de horas se necessário (Modo Horas)
             if hora_antiga > 0 or hora_nova > 0:
                 cursor.execute("SELECT id, observacao FROM atividades WHERE usuario = %s AND mes = %s AND ano = %s AND status != 'Rejeitado';", (usuario, mes, ano))
                 atividades = cursor.fetchall()
@@ -454,17 +455,7 @@ def is_user_a_manager(usuario, hierarquia_df):
     if hierarquia_df.empty: return False
     return usuario in hierarquia_df['gerente'].unique()
 
-# --- DADOS FIXOS ---
-DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento", "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira", "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados", "2.012 - Logística de viagens","2.013 - Prestação de contas","2.014 - Compras e Suprimentos", "3.001 - Prospecção de oportunidades", "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital", "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto", "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta", "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial", "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto", "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho", "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas", "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos", "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados", "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento", "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho", "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados", "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug", "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades", "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação", "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa", "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes", "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material", "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho", "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo", "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH", "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento", "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna", "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação", "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho", "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações", "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos", "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados", "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
-PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia", "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia", "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura", "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente", "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas", "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0", "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)", "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid", "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta", "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid", "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas", "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde", "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics", "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação", "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD", "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT", "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas", "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck", "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta", "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
-
-DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
-PROJETOS_SELECT = ["--- Selecione ---"] + PROJETOS
-MESES = {1: "01 - Janeiro", 2: "02 - Fevereiro", 3: "03 - Março", 4: "04 - Abril", 5: "05 - Maio", 6: "06 - Junho", 7: "07 - Julho", 8: "08 - Agosto", 9: "09 - Setembro", 10: "10 - Outubro", 11: "11 - Novembro", 12: "12 - Dezembro"}
-MESES_SELECT = ["--- Selecione ---"] + list(MESES.values())
-ANOS = list(range(datetime.today().year - 2, datetime.today().year + 3))
-
-# --- CALLBACKS ---
+# --- CALLBACK DE DELETE ---
 def handle_delete(atividade_id):
     conn = get_db_connection()
     if not conn: return
@@ -507,11 +498,15 @@ def handle_delete(atividade_id):
     st.toast("Atividade apagada!", icon="🗑️")
     st.rerun()
 
-def handle_status_update(atividade_id, novo_status):
-    if atualizar_status_atividade(atividade_id, novo_status):
-        carregar_dados.clear()
-        st.toast(f"Atualizado para {novo_status}", icon="✅")
-        st.rerun()
+# --- DADOS FIXOS ---
+DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento", "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira", "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados", "2.012 - Logística de viagens","2.013 - Prestação de contas","2.014 - Compras e Suprimentos", "3.001 - Prospecção de oportunidades", "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital", "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto", "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta", "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial", "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto", "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho", "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas", "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos", "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados", "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento", "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho", "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados", "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug", "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades", "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação", "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa", "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes", "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material", "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho", "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo", "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH", "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento", "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna", "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação", "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho", "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações", "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos", "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados", "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
+PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia", "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia", "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura", "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente", "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas", "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0", "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)", "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid", "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta", "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid", "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas", "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde", "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics", "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação", "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD", "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT", "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas", "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck", "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta", "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
+
+DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
+PROJETOS_SELECT = ["--- Selecione ---"] + PROJETOS
+MESES = {1: "01 - Janeiro", 2: "02 - Fevereiro", 3: "03 - Março", 4: "04 - Abril", 5: "05 - Maio", 6: "06 - Junho", 7: "07 - Julho", 8: "08 - Agosto", 9: "09 - Setembro", 10: "10 - Outubro", 11: "11 - Novembro", 12: "12 - Dezembro"}
+MESES_SELECT = ["--- Selecione ---"] + list(MESES.values())
+ANOS = list(range(datetime.today().year - 2, datetime.today().year + 3))
 
 # ==============================
 # 6. Sessão e Login
@@ -807,7 +802,6 @@ else:
                 st.rerun()
 
         # --- BARRA DE PROGRESSO (SUBSTITUI PIE CHART) ---
-        # Preview dinâmico (apenas visualização estática do estado atual + form vazio)
         st.subheader("📊 Status do Mês")
         percentual_decimal = min(total_existente / 100.0, 1.0)
         st.progress(percentual_decimal)
@@ -818,7 +812,7 @@ else:
         c_k3.metric("Horas Brutas", f"{horas_existentes:.1f} h")
 
     # ==============================
-    # ABA: Minhas Atividades (Tabela Grid)
+    # ABA: Minhas Atividades (Tabela Grid CORRIGIDA)
     # ==============================
     elif aba == "Minhas Atividades":
         st.header("📋 Minhas Atividades")
@@ -831,7 +825,7 @@ else:
         ativas = [a for a in atividades if a['status'] != 'Rejeitado']
         total = sum(a['porcentagem'] for a in ativas)
         
-        # Mantém gráfico aqui conforme solicitado (layout tabela é para os itens)
+        # Mantém gráfico aqui
         col_met, col_graph = st.columns([1, 2])
         col_met.metric("Total Alocado", f"{total}%", f"{100-total}% restante")
         
@@ -865,7 +859,7 @@ else:
         # --- LAYOUT TABELA/GRID PARA EDIÇÃO ---
         st.subheader("Edição")
         
-        # Cabeçalho
+        # Cabeçalho (Fora do loop)
         cols_head = st.columns([0.5, 3, 3, 1.5, 2.5, 1.5])
         cols_head[0].markdown("**ID**")
         cols_head[1].markdown("**Descrição**")
@@ -879,14 +873,12 @@ else:
             h_bruta, obs_clean = extrair_hora_bruta(a.get('observacao', ''))
             disabled = a['status'] != 'Pendente'
             
-            # Linha Grid
-            c_id, c_desc, c_proj, c_perc, c_obs, c_act = st.columns([0.5, 3, 3, 1.5, 2.5, 1.5])
-            
-            c_id.text(f"{a['id']}")
-            
-            # Form por linha
+            # CORREÇÃO: Form envolve a criação das colunas
             with st.form(key=f"f_row_{a['id']}"):
-                # Renderiza widgets dentro das colunas externas
+                c_id, c_desc, c_proj, c_perc, c_obs, c_act = st.columns([0.5, 3, 3, 1.5, 2.5, 1.5])
+                
+                c_id.markdown(f"<div style='padding-top: 10px;'>{a['id']}</div>", unsafe_allow_html=True)
+                
                 with c_desc:
                     nd = st.selectbox("d", DESCRICOES_SELECT, index=DESCRICOES_SELECT.index(a['descricao']) if a['descricao'] in DESCRICOES_SELECT else 0, key=f"d_{a['id']}", label_visibility="collapsed", disabled=disabled)
                 with c_proj:
@@ -898,23 +890,27 @@ else:
                 
                 with c_act:
                     st.markdown(f'<span class="status-badge status-{a["status"]}">{a["status"]}</span>', unsafe_allow_html=True)
-                    sub = st.form_submit_button("💾", disabled=disabled)
-            
-            # Botão excluir fora do form
-            with c_act:
-                st.button("🗑️", key=f"del_{a['id']}", on_click=handle_delete, args=(a['id'],))
+                    
+                    cb1, cb2 = st.columns(2)
+                    with cb1:
+                        btn_salvar = st.form_submit_button("💾", disabled=disabled, use_container_width=True, help="Salvar")
+                    with cb2:
+                        btn_excluir = st.form_submit_button("🗑️", use_container_width=True, help="Excluir")
 
-            if sub:
-                exc = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_sel, excluido_id=a['id'])
-                if exc + nv > 100:
-                    st.toast("Erro: > 100%", icon="❌")
-                else:
-                    obs_final = f"[HORA:{h_bruta}|{no}]" if h_bruta > 0 else no
-                    atualizar_atividade_completa(a['id'], nd, np, nv, obs_final)
-                    carregar_dados.clear()
-                    st.toast("Atualizado!", icon="✅")
-                    st.rerun()
-            
+                if btn_salvar:
+                    exc = calcular_porcentagem_existente(st.session_state["usuario"], mes_num, ano_sel, excluido_id=a['id'])
+                    if exc + nv > 100:
+                        st.toast("Erro: > 100%", icon="❌")
+                    else:
+                        obs_final = f"[HORA:{h_bruta}|{no}]" if h_bruta > 0 else no
+                        atualizar_atividade_completa(a['id'], nd, np, nv, obs_final)
+                        carregar_dados.clear()
+                        st.toast("Atualizado!", icon="✅")
+                        st.rerun()
+                
+                if btn_excluir:
+                    handle_delete(a['id'])
+
             st.markdown("<hr style='margin: 5px 0; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
     # ==============================
@@ -939,7 +935,7 @@ else:
                 # Normalização Colunas
                 map_cols = {'Nome': 'usuario', 'Data': 'data', 'Descrição': 'descricao', 'Projeto': 'projeto', 'Porcentagem': 'porcentagem', 'Observação (Opcional)': 'observacao'}
                 df.rename(columns=map_cols, inplace=True)
-                df.columns = df.columns.str.lower() # garante lowercase
+                df.columns = df.columns.str.lower() 
                 
                 # Trava de Segurança Usuário
                 if not st.session_state["admin"]:
@@ -1001,5 +997,4 @@ else:
             st.plotly_chart(fig, use_container_width=True)
             
             st.dataframe(df_f.drop(columns=['m_a']), use_container_width=True, hide_index=True)
-
 
