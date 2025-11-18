@@ -499,7 +499,7 @@ def handle_delete(atividade_id):
 
 # --- DADOS FIXOS ---
 DESCRICOES = ["1.001 - Gestão","1.002 - Geral","1.003 - Conselho","1.004 - Treinamento e Desenvolvimento", "2.001 - Gestão do administrativo","2.002 - Administrativa","2.003 - Jurídica","2.004 - Financeira", "2.006 - Fiscal","2.007 - Infraestrutura TI","2.008 - Treinamento interno","2.011 - Análise de dados", "2.012 - Logística de viagens","2.013 - Prestação de contas","2.014 - Compras e Suprimentos", "3.001 - Prospecção de oportunidades", "3.002 - Prospecção de temas","3.003 - Administração comercial","3.004 - Marketing Digital", "3.005 - Materiais de apoio","3.006 - Grupos de Estudo","3.007 - Elaboração de POC/Piloto", "3.008 - Elaboração e apresentação de proposta","3.009 - Acompanhamento de proposta", "3.010 - Reunião de acompanhamento de funil","3.011 - Planejamento Estratégico/Comercial", "3.012 - Sucesso do Cliente","3.013 - Participação em eventos","4.001 - Planejamento de projeto", "4.002 - Gestão de projeto","4.003 - Reuniões internas de trabalho","4.004 - Reuniões externas de trabalho", "4.005 - Pesquisa","4.006 - Especificação de software","4.007 - Desenvolvimento de software/rotinas", "4.008 - Coleta e preparação de dados","4.009 - Elaboração de estudos e modelos","4.010 - Confecção de relatórios técnicos", "4.011 - Confecção de apresentações técnicas","4.012 - Confecção de artigos técnicos","4.013 - Difusão de resultados", "4.014 - Elaboração de documentação final","4.015 - Finalização do projeto","5.001 - Gestão de desenvolvimento", "5.002 - Planejamento de projeto","5.003 - Gestão de projeto","5.004 - Reuniões internas de trabalho", "5.005 - Reuniões externa de trabalho","5.006 - Pesquisa","5.007 - Coleta e preparação de dados", "5.008 - Modelagem","5.009 - Análise de tarefa","5.010 - Especificação de tarefa","5.011 - Correção de bug", "5.012 - Desenvolvimento de melhorias","5.013 - Desenvolvimento de novas funcionalidades", "5.014 - Desenvolvimento de integrações","5.015 - Treinamento interno","5.016 - Documentação", "5.017 - Atividades gerenciais","5.018 - Estudos","6.001 - Gestão de equipe","6.002 - Pesquisa", "6.003 - Especificação de testes","6.004 - Desenvolvimento de automações","6.005 - Realização de testes", "6.006 - Reuniões internas de trabalho","6.007 - Treinamento interno","6.008 - Elaboração de material", "7.001 - Gestão de equipe","7.002 - Pesquisa e estudos","7.003 - Análise de ticket","7.004 - Reuniões internas de trabalho", "7.005 - Reuniões externas de trabalho","7.006 - Preparação de treinamento externo","7.007 - Realização de treinamento externo", "7.008 - Documentação de treinamento","7.009 - Treinamento interno","7.010 - Criação de tarefa","9.001 - Gestão do RH", "9.002 - Recrutamento e seleção","9.003 - Participação em eventos","9.004 - Pesquisa e estratégia","9.005 - Treinamento e desenvolvimento", "9.006 - Registro de feedback","9.007 - Avaliação de RH","9.008 - Elaboração de conteúdo","9.009 - Comunicação interna", "9.010 - Reuniões internas de trabalho","9.011 - Reunião externa","9.012 - Apoio contábil e financeiro","10.001 - Planejamento de operação", "10.002 - Gestão de operação","10.003 - Reuniões internas de trabalho","10.004 - Reuniões externas de trabalho", "10.005 - Especificação de melhoria ou correção de software","10.006 - Desenvolvimento de automações", "10.007 - Coleta e preparação de dados","10.008 - Elaboração de estudos e modelos","10.009 - Confecção de relatórios técnicos", "10.010 - Confecção de apresentações técnicas","10.011 - Confecção de artigos técnicos","10.012 - Difusão de resultados", "10.013 - Preparação de treinamento externo","10.014 - Realização de treinamento externo","10.015 - Mapeamento de Integrações"]
-PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia", "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia", "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura", "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente", "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas", "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0", "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)", "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid", "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta", "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid","585-0 (COOPERLUZ) Suporte SINAPgrid", "587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas", "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde", "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics", "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação", "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD", "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT", "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas", "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck", "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta", "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
+PROJETOS = ["101-0 (Interno) Diretoria Executiva","102-0 (Interno) Diretoria Administrativa","103-0 (Interno) Diretoria de Engenharia", "104-0 (Interno) Diretoria de Negócios","105-0 (Interno) Diretoria de Produtos","106-0 (Interno) Diretoria de Tecnologia", "107-0 (Interno) Departamento Administrativo","108-0 (Interno) Departamento de Gente e Cultura","109-0 (Interno) Departamento de Infraestrutura", "110-0 (Interno) Departamento de Marketing","111-0 (Interno) Departamento de Operação","112-0 (Interno) Departamento de Sucesso do Cliente", "113-0 (Interno) Produto ARIES","114-0 (Interno) Produto ActionWise","115-0 (Interno) Produto Carga Base","116-0 (Interno) Produto Godel Perdas", "117-0 (Interno) Produto Godel Conecta","118-0 (Interno) Produto SIGPerdas","119-0 (Interno) Produto SINAPgrid","120-0 (Interno) Produto SINAP4.0", "121-0 (Interno) SINAPgrid Acadêmico","122-0 (Interno) Produto SINAPgateway (BAGRE)","123-0 (Interno) Produto SINAPautomação e diagnóstico (autobatch)", "302-0 (SENSE - Equatorial) Virtus","402-0 (SOFTEX - Copel) Renovação de Ativos Continuação","573-1 (ENEL) Suporte SINAPgrid", "573-2 (ENEL) Re-configuração","575-0 (Amazonas) Suporte SINAPgrid","578-1 (Copel) Suporte SINAPgrid","578-2 (Copel) Suporte Godel Conecta", "578-3 (Copel) Suporte GDIS","581-0 (CERILUZ) Suporte SINAPgrid","583-0 (CERTAJA) Suporte SINAPgrid","584-0 (CERTEL) Suporte SINAPgrid", "585-0 (COOPERLUZ) Suporte SINAPgrid","587-0 (COPREL) Suporte SINAPgrid","606-0 (Roraima) Suporte SINAPgrid","615-0 (Energisa) Suporte SIGPerdas", "620-1 (CPFL) Suporte SINAPgrid","638-1 (Amazonas) Suporte SIGPerdas","638-2 (Roraima) Suporte SIGPerdas","640-0 (SENAI - CTG) Hidrogênio Verde", "647-0 (Energisa) Consultoria de Estudos Elétricos","648-0 (Neoenergia) Suporte SINAPgrid","649-0 (Neoenergia) Godel PCom e Godel Analytics", "653-0 (Roraima) Projeto Gestor GDIS","655-0 (CELESC) Sistema Integrável de Matchmaking","658-0 (Copel) Planauto Continuação", "659-0 (Copel) Cálculo de Benefícios de Investimentos","660-0 (CERFOX) Suporte SINAPgrid","661-0 (ENEL SP, RJ e CE) Consultoria técnica BDGD", "663-0 (Banco Mundial) Eletromobilidade em São Paulo","666-0 (Energisa) Análise MM GD","667-0 (Energisa) Planejamento Decenal MT", "668-0 (Energisa) Critérios de Planejamento de SEs","669-0 (Desenvolve SP) Hub de Dados","670-0 (CPFL) Proteção","671-0 (Equatorial) Godel Perdas", "672-0 (ENEL SP) URD Subterrâneo","673-0 (Equatorial) PDD","674-0 (Energisa PB) Planejamento Decenal 2025","675-0 (EDEMSA) Godel Perdas Suporte Técnico Bromteck", "676-0 (Equatorial) PoC Resiliência","677-0 (Neoenergia) Suporte Godel Perdas","678-0 (CPFL) AMBAR","679-0 (ENEL) Godel Conecta", "680-0 (CESI) Angola Banco Mundial","681-0 (CEMACON) Suporte SINAPgrid","682-0 (FECOERGS) Treinamento SINAPgrid"]
 
 DESCRICOES_SELECT = ["--- Selecione ---"] + DESCRICOES
 PROJETOS_SELECT = ["--- Selecione ---"] + PROJETOS
@@ -507,8 +507,9 @@ MESES = {1: "01 - Janeiro", 2: "02 - Fevereiro", 3: "03 - Março", 4: "04 - Abri
 MESES_SELECT = ["--- Selecione ---"] + list(MESES.values())
 ANOS = list(range(datetime.today().year - 2, datetime.today().year + 3))
 
+
 # --- INFORMAÇÕES FIXAS DA FAMÍLIA (DEPARTAMENTOS) ---
-# CORREÇÃO: O número 8 foi removido
+# CORRIGIDO: 9 e 10 corretos
 DEPARTAMENTOS_INFO = [
     "1. Diretoria & Conselho (Apenas Diretoria)",
     "2. Administração",
@@ -521,6 +522,14 @@ DEPARTAMENTOS_INFO = [
     "10. Operação"
 ]
 # ----------------------------------------------------
+
+# --- FUNÇÃO AUXILIAR PARA FORMATAR GUIA ---
+def format_department_guide(department_list):
+    """Formata a lista de strings em um bloco HTML para evitar o auto-numbering do Markdown."""
+    # Envolve cada item em um <li> dentro de um <ul> com estilo none
+    items_html = "".join([f"<li>{item}</li>" for item in department_list])
+    # list-style: none remove o ponto/número padrão do <ul>. padding-left: 0 alinha.
+    return f"<ul style='list-style-type: none; padding-left: 0; margin: 0;'>{items_html}</ul>"
 
 
 # ==============================
@@ -550,6 +559,8 @@ st.markdown(
         .status-Pendente {{ background-color: #ffcc99; color: #cc6600; }}
         .status-Aprovado {{ background-color: #ccffcc; color: #008000; }}
         .status-Rejeitado {{ background-color: #ff9999; color: #cc0000; }}
+        /* Garante que o texto dentro dos itens da lista de Guia não mude de cor */
+        .stMarkdown ul li {{ color: {COR_CINZA} !important; }} 
         [data-testid="stSidebar"] img {{ filter: brightness(1.5) contrast(1.5); }}
     </style>
     """, unsafe_allow_html=True
@@ -751,7 +762,7 @@ else:
                 st.rerun()
 
     # ==============================
-    # ABA: Lançar Atividade (Barra de Progresso + Guia)
+    # ABA: Lançar Atividade (Barra de Progresso + Guia CORRIGIDA)
     # ==============================
     elif aba == "Lançar Atividade":
         st.header("📝 Lançar Atividade")
@@ -771,11 +782,10 @@ else:
         tipo = st.radio("Tipo", ["Porcentagem", "Horas"], horizontal=True)
         qtd = st.number_input("Quantidade", 1, 20, 1)
         
-        # --- NOVO BLOCO: GUIA DE DEPARTAMENTO/FAMÍLIA (CORRIGIDO) ---
+        # --- NOVO BLOCO: GUIA DE DEPARTAMENTO/FAMÍLIA (CORREÇÃO DE RENDERING) ---
         st.subheader("📚 Guia de Classificação (Família da Atividade)")
         
-        # Divide a lista em 3 colunas para manter a horizontalidade
-        # 1-3, 4-6, 7-10 (corrigido)
+        # Divide a lista em 3 colunas (1-3, 4-6, 7-10)
         grupos = [
             DEPARTAMENTOS_INFO[0:3], 
             DEPARTAMENTOS_INFO[3:6], 
@@ -785,15 +795,15 @@ else:
         col_d1, col_d2, col_d3 = st.columns(3)
         
         with col_d1:
-            st.markdown('\n'.join(grupos[0]))
+            st.markdown(format_department_guide(grupos[0]), unsafe_allow_html=True)
         with col_d2:
-            st.markdown('\n'.join(grupos[1]))
+            st.markdown(format_department_guide(grupos[1]), unsafe_allow_html=True)
         with col_d3:
-            # Reorganiza o grupo 3 para exibir as linhas 7, 9 e 10
-            st.markdown('\n'.join(grupos[2]))
+            # Usa a nova função de formatação HTML para prevenir que 7, 9, 10 vire 7, 8, 9
+            st.markdown(format_department_guide(grupos[2]), unsafe_allow_html=True)
             
         st.markdown("<hr style='margin-top: 5px; margin-bottom: 5px;'>", unsafe_allow_html=True)
-        # ----------------------------------------------------
+        # --------------------------------------------------------------------
 
         
         with st.form("lancamento"):
@@ -937,9 +947,7 @@ else:
                     
                     perc_final = nv
                     if h_bruta > 0:
-                        # Se for em horas, o percentual digitado é ignorado, mas o ajuste será feito.
-                        # Não fazemos validação de > 100% aqui, pois o ajuste corrige.
-                        perc_final = a['porcentagem'] # Mantém o percentual original, apenas a observação é atualizada
+                        perc_final = a['porcentagem']
                     elif exc + nv > 100:
                         st.toast("Erro: > 100%", icon="❌")
                         st.stop()
@@ -958,3 +966,123 @@ else:
                     handle_delete(a['id'])
 
             st.markdown("<hr style='margin: 5px 0; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
+
+    # ==============================
+    # ABA: Importar Dados
+    # ==============================
+    elif aba == "Importar Dados":
+        st.header("⬆️ Importação de Dados")
+        
+        if st.session_state["admin"]:
+            st.info("Modo Admin: Importa conforme coluna 'Nome'.")
+        else:
+            st.info(f"Modo Usuário: Dados serão importados para **{st.session_state['usuario']}**.")
+            
+        up = st.file_uploader("CSV ou Excel", type=["csv", "xlsx"])
+        if up:
+            try:
+                if up.name.endswith('.csv'):
+                    df = pd.read_csv(up, sep=None, engine='python')
+                else:
+                    df = pd.read_excel(up)
+                
+                map_cols = {'Nome': 'usuario', 'Data': 'data', 'Descrição': 'descricao', 'Projeto': 'projeto', 'Porcentagem': 'porcentagem', 'Observação (Opcional)': 'observacao'}
+                df.columns = df.columns.str.strip()
+                cols_existentes = {c: c for c in df.columns}
+                rename_dict = {}
+                for k, v in map_cols.items():
+                    for c in cols_existentes:
+                        if k.lower() == c.lower():
+                            rename_dict[c] = v
+                df.rename(columns=rename_dict, inplace=True)
+                
+                colunas_obrigatorias = ['usuario', 'data', 'descricao', 'projeto', 'porcentagem']
+                missing = [c for c in colunas_obrigatorias if c not in df.columns]
+                if missing:
+                    if not st.session_state["admin"] and 'usuario' in missing: pass 
+                    else:
+                        st.error(f"Colunas faltando: {missing}")
+                        st.stop()
+
+                if not st.session_state["admin"]:
+                    df['usuario'] = st.session_state["usuario"]
+                
+                df['data'] = pd.to_datetime(df['data'], errors='coerce', dayfirst=True)
+                df.dropna(subset=['data', 'usuario', 'porcentagem'], inplace=True)
+                df['mes'] = df['data'].dt.month
+                df['ano'] = df['data'].dt.year
+                
+                if df['porcentagem'].max() <= 1.0: df['porcentagem'] = (df['porcentagem'] * 100)
+                df['porcentagem'] = df['porcentagem'].astype(int)
+
+                if 'observacao' not in df.columns: df['observacao'] = ''
+                df['observacao'] = df['observacao'].fillna('').astype(str)
+                df['status'] = 'Pendente'
+                df['descricao'] = df['descricao'].astype(str).str.strip()
+                df['projeto'] = df['projeto'].astype(str).str.strip()
+
+                st.markdown("### 🔍 Validação")
+                erros_validacao = False
+                desc_inv = df[~df['descricao'].isin(DESCRICOES)]
+                if not desc_inv.empty:
+                    st.error("❌ Descrições inválidas")
+                    st.dataframe(desc_inv['descricao'].unique())
+                    erros_validacao = True
+
+                proj_inv = df[~df['projeto'].isin(PROJETOS)]
+                if not proj_inv.empty:
+                    st.error("❌ Projetos inválidos")
+                    st.dataframe(proj_inv['projeto'].unique())
+                    erros_validacao = True
+                
+                if erros_validacao: st.stop()
+                
+                st.success("✅ Validado!")
+                st.dataframe(df.head())
+                
+                if st.button("Confirmar Importação", type="primary"):
+                    df_exist = atividades_df[atividades_df['status'] != 'Rejeitado']
+                    tot_ex = df_exist.groupby(['usuario','mes','ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem':'existente'})
+                    tot_new = df.groupby(['usuario','mes','ano'])['porcentagem'].sum().reset_index().rename(columns={'porcentagem':'novo'})
+                    merged = pd.merge(tot_ex, tot_new, on=['usuario','mes','ano'], how='outer').fillna(0)
+                    
+                    violacoes = merged[merged['existente'] + merged['novo'] > 100]
+                    if not violacoes.empty:
+                        st.error("❌ Soma > 100% detectada.")
+                        st.dataframe(violacoes)
+                        st.stop()
+                        
+                    qtd, msg = bulk_insert_atividades(df)
+                    if qtd > 0: 
+                        st.balloons()
+                        st.success(f"🎉 Importado {qtd} registros.")
+                        carregar_dados.clear()
+                    else: 
+                        st.error(msg)
+            
+            except Exception as e:
+                st.error(f"Erro: {e}")
+
+    # ==============================
+    # ABA: Consolidado (Admin)
+    # ==============================
+    elif aba == "Consolidado" and st.session_state["admin"]:
+        st.header("📑 Consolidado")
+        if atividades_df.empty:
+            st.info("Vazio.")
+        else:
+            c1, c2, c3 = st.columns(3)
+            u_sel = c1.selectbox("Usuário", ["Todos"] + sorted(atividades_df['usuario'].unique()))
+            atividades_df['m_a'] = atividades_df['data'].dt.strftime('%Y-%m')
+            m_sel = c2.selectbox("Mês", ["Todos"] + sorted(atividades_df['m_a'].unique(), reverse=True))
+            s_sel = c3.selectbox("Status", ["Todos", "Pendente", "Aprovado", "Rejeitado"])
+            
+            df_f = atividades_df.copy()
+            if u_sel != "Todos": df_f = df_f[df_f['usuario'] == u_sel]
+            if m_sel != "Todos": df_f = df_f[df_f['m_a'] == m_sel]
+            if s_sel != "Todos": df_f = df_f[df_f['status'] == s_sel]
+            
+            fig = px.bar(df_f.groupby('m_a')['porcentagem'].sum().reset_index(), x='m_a', y='porcentagem', title="Total Alocado")
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.dataframe(df_f.drop(columns=['m_a']), use_container_width=True, hide_index=True)
