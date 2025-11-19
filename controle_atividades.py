@@ -68,7 +68,8 @@ def setup_db():
                 CREATE TABLE IF NOT EXISTS usuarios (
                     usuario VARCHAR(50) PRIMARY KEY,
                     senha VARCHAR(50) NOT NULL,
-                    admin BOOLEAN DEFAULT FALSE
+                    admin BOOLEAN DEFAULT FALSE,
+                    email VARCHAR(255)
                 );
             """)
             
@@ -106,6 +107,16 @@ def setup_db():
                     CHECK (gerente != subordinado)
                 );
             """)
+            
+            # Adiciona a coluna email se ela não existir
+            try:
+                cursor.execute("SELECT 1 FROM information_schema.columns WHERE table_name='usuarios' AND column_name='email';")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE usuarios ADD COLUMN email VARCHAR(255);")
+                    conn.commit()
+            except Exception:
+                conn.rollback()
+
             conn.commit()
     except Exception as e:
         st.error(f"Erro no setup DB: {e}")
@@ -783,7 +794,7 @@ else:
         qtd = st.number_input("Quantidade", 1, 20, 1)
         
         # --- NOVO BLOCO: GUIA DE DEPARTAMENTO/FAMÍLIA (CORREÇÃO DE RENDERING) ---
-        st.subheader("📚 Guia de descrição da Atividade do Departamento")
+        st.subheader("📚 Guia de Classificação (Família da Atividade)")
         
         # Divide a lista em 3 colunas (1-3, 4-6, 7-10)
         grupos = [
@@ -986,6 +997,14 @@ else:
                 else:
                     df = pd.read_excel(up)
                 
+                # --- NOVO TRATAMENTO DE VÍRGULA DECIMAL ---
+                if 'Porcentagem' in df.columns:
+                    # Se Pandas leu como string (object), corrige a vírgula
+                    if df['Porcentagem'].dtype == object:
+                        df['Porcentagem'] = df['Porcentagem'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+                        df['Porcentagem'] = pd.to_numeric(df['Porcentagem'], errors='coerce')
+                # ------------------------------------------
+                
                 map_cols = {'Nome': 'usuario', 'Data': 'data', 'Descrição': 'descricao', 'Projeto': 'projeto', 'Porcentagem': 'porcentagem', 'Observação (Opcional)': 'observacao'}
                 df.columns = df.columns.str.strip()
                 cols_existentes = {c: c for c in df.columns}
@@ -1081,9 +1100,32 @@ else:
             if u_sel != "Todos": df_f = df_f[df_f['usuario'] == u_sel]
             if m_sel != "Todos": df_f = df_f[df_f['m_a'] == m_sel]
             if s_sel != "Todos": df_f = df_f[df_f['status'] == s_sel]
+
+            # Renomeia colunas para exportação
+            df_export = df_f.drop(columns=['m_a', 'id', 'observacao']).rename(columns={
+                'usuario': 'Usuário',
+                'data': 'Data',
+                'mes': 'Mês',
+                'ano': 'Ano',
+                'descricao': 'Descrição',
+                'projeto': 'Projeto',
+                'porcentagem': 'Porcentagem (%)',
+                'status': 'Status'
+            })
             
-            fig = px.bar(df_f.groupby('m_a')['porcentagem'].sum().reset_index(), x='m_a', y='porcentagem', title="Total Alocado")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(px.bar(df_f.groupby('m_a')['porcentagem'].sum().reset_index(), x='m_a', y='porcentagem', title="Total Alocado"), use_container_width=True)
             
             st.dataframe(df_f.drop(columns=['m_a']), use_container_width=True, hide_index=True)
 
+            # Botão de Exportação para Excel (Consolidado)
+            buffer = io.BytesIO()
+            df_export.to_excel(buffer, index=False, sheet_name='Consolidado')
+            buffer.seek(0)
+            
+            st.download_button(
+                label="⬇️ Exportar Tabela Filtrada para Excel",
+                data=buffer,
+                file_name=f"consolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
